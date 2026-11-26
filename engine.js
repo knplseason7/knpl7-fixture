@@ -156,43 +156,53 @@
     return rows;
   };
 
-  /* ---------- scheduler: choose which pair goes into which fixed slot ---------- */
-  E.WB = 1;       // weight of a back-to-back match, compared with one ground change
+  /* ---------- scheduler: choose which pair goes into which fixed slot ----------
+     The Excel times are the reference times (no ground change). If a team must change ground and its last match
+     ended less than 30 minutes before, that match starts later (30 minutes ground-change time), and the other
+     matches on that ground follow it. A team that has a free slot in between needs no extra time. */
+  E.WB = 0.5;     // weight of a back-to-back match, compared with one ground change
+  E.WDEL = 1.5;   // weight of a match that has to start late for the ground-change time
   E.WPEN = 0.15;  // weight that makes the lower-ranked / losing team the one that travels
   function context(st) {
-    const old = {}, last = {}, rank = {};
-    st.matches.slice().sort((a, b) => a.start - b.start).forEach(m => [m.a, m.b].forEach(t => {
-      const k = t + '|' + m.day; (old[k] = old[k] || []).push({ start: m.start, end: m.end, g: m.ground, no: m.no, nw: 0 });
-      if (m.result) last[t + '|' + m.day] = m.result.winner === t;
-    }));
-    if (st.draw.groupsDone) ['A', 'B'].forEach(g => E.standings(st, g).forEach(r => rank[r.id] = r.pos));
-    return { old, last, rank };
-  }
-  /* score one way of filling the slots. Lower is better. */
-  function score(st, assign, ctx) {
-    const tr = st.settings.travelMins; let sw = 0, viol = 0, tight = 0, b2b = 0, pen = 0; const per = {};
-    assign.forEach(({ p, pos }) => [p[0], p[1]].forEach(t => { const k = t + '|' + pos.day; (per[k] = per[k] || []).push({ start: pos.start, end: pos.start + E.dur(st, pos.day), g: pos.ground, nw: 1, t }); }));
-    Object.keys(per).forEach(k => {
-      const seq = (ctx.old[k] || []).concat(per[k]).sort((a, b) => a.start - b.start); let ch = 0; const t = k.split('|')[0];
-      for (let i = 1; i < seq.length; i++) {
-        const a = seq[i - 1], b = seq[i]; if (!a.nw && !b.nw) { if (a.g !== b.g) ch++; continue; }
-        const rest = b.start - a.end;
-        if (a.g !== b.g) { ch++; sw++; if (rest < tr) tight++; pen += ctx.rank[t] ? (9 - ctx.rank[t]) / 8 : (ctx.last[k] ? 1 : 0); }
-        if (rest < tr) b2b++;
-      }
-      if (ch > 1) viol += ch - 1;
+    const gfree = {}, lastm = {}, chg = {}, last = {}, rank = {};
+    st.matches.slice().sort((a, b) => a.start - b.start).forEach(m => {
+      const gk = m.day + '|' + m.ground; gfree[gk] = Math.max(gfree[gk] || 0, m.end);
+      [m.a, m.b].forEach(t => { const k = t + '|' + m.day, l = lastm[k]; if (l && l.g !== m.ground) chg[k] = (chg[k] || 0) + 1; lastm[k] = { end: m.end, g: m.ground }; if (m.result) last[k] = m.result.winner === t; });
     });
-    return { sw, viol, tight, b2b, pen, cost: sw + E.WB * b2b, assign };
+    if (st.draw.groupsDone) ['A', 'B'].forEach(g => E.standings(st, g).forEach(r => rank[r.id] = r.pos));
+    return { gfree, lastm, chg, last, rank };
+  }
+  /* work out the real start times of one way of filling the slots, and score it. Lower is better. */
+  function layout(st, assign, ctx) {
+    const tr = st.settings.travelMins, lim = E.minFromClock(st, st.settings.lastLight);
+    const ord = assign.slice().sort((a, b) => a.pos.start - b.pos.start || a.pos.ground - b.pos.ground);
+    const gfree = Object.assign({}, ctx.gfree), last = Object.assign({}, ctx.lastm), chg = Object.assign({}, ctx.chg), laid = [];
+    let sw = 0, viol = 0, b2b = 0, delayed = 0, late = 0, pen = 0;
+    ord.forEach(({ p, pos }) => {
+      const dur = E.dur(st, pos.day), gk = pos.day + '|' + pos.ground; let s = Math.max(pos.start, gfree[gk] || 0);
+      [p[0], p[1]].forEach(t => { const l = last[t + '|' + pos.day]; if (l) s = Math.max(s, l.g !== pos.ground ? l.end + tr : l.end); });
+      [p[0], p[1]].forEach(t => {
+        const k = t + '|' + pos.day, l = last[k];
+        if (l) {
+          if (l.g !== pos.ground) { sw++; chg[k] = (chg[k] || 0) + 1; if (chg[k] > 1) viol++; pen += ctx.rank[t] ? (9 - ctx.rank[t]) / 8 : (ctx.last[k] ? 1 : 0); }
+          if (s - l.end < tr) b2b++;
+        }
+        last[k] = { end: s + dur, g: pos.ground };
+      });
+      if (s > pos.start) delayed++;
+      gfree[gk] = s + dur; if (s + dur > lim) late += s + dur - lim;
+      laid.push({ p, pos, start: s, end: s + dur });
+    });
+    return { sw, viol, b2b, delayed, late, pen, cost: sw + E.WB * b2b + E.WDEL * delayed, laid };
   }
   const cmpv = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] - b[i]; return 0; };
-  E.WT = 1000;
-  const skey = r => [E.WT >= 1000 ? r.tight : 0, r.viol, r.cost + (E.WT >= 1000 ? 0 : E.WT * r.tight), E.WPEN ? r.pen : 0];
+  const skey = r => [r.late > 0 ? 1 : 0, r.viol, r.cost, E.WPEN ? r.pen : 0];
   function allAssign(st, id, pairs, ctx) {
     const pos = E.positions(st, id), n = pairs.length, out = [];
     if (pos.length < n) throw new Error('No free slots for ' + id);
     const used = new Array(pos.length).fill(false), cur = [];
     (function rec(i) {
-      if (i === n) { out.push(score(st, cur.map(c => ({ p: c.p, pos: c.pos })), ctx)); return; }
+      if (i === n) { out.push(layout(st, cur.slice(), ctx)); return; }
       for (let j = 0; j < pos.length; j++) {
         if (used[j]) continue; const p = pairs[i]; if (p.onlyDay && p.onlyDay !== pos[j].day) continue;
         used[j] = true; cur.push({ p, pos: pos[j] }); rec(i + 1); cur.pop(); used[j] = false;
@@ -209,21 +219,22 @@
   }
   /* post-hoc metrics of a whole fixture (used by the look-ahead and by the ground report) */
   E.metrics = function (st) {
-    const tr = st.settings.travelMins; let sw = 0, viol = 0, tight = 0, b2b = 0, pen = 0, ms = 0;
+    const tr = st.settings.travelMins, lim = E.minFromClock(st, st.settings.lastLight); let sw = 0, viol = 0, b2b = 0, pen = 0, delayed = 0, late = 0;
+    st.matches.forEach(m => { if (m.delay > 0) delayed++; if (m.end > lim) late += m.end - lim; });
     st.teams.forEach(t => { for (let d = 1; d <= 4; d++) {
-      const seq = st.matches.filter(m => m.day === d && (m.a === t.id || m.b === t.id)).sort((a, b) => a.start - b.start); let ch = 0; ms += seq.length;
-      for (let i = 1; i < seq.length; i++) { const a = seq[i - 1], b = seq[i], rest = b.start - a.end;
-        if (a.ground !== b.ground) { ch++; sw++; if (rest < tr) tight++; if (a.result && a.result.winner === t.id) pen++; }
-        if (rest < tr) b2b++; }
+      const seq = st.matches.filter(m => m.day === d && (m.a === t.id || m.b === t.id)).sort((a, b) => a.start - b.start); let ch = 0;
+      for (let i = 1; i < seq.length; i++) { const a = seq[i - 1], b = seq[i];
+        if (a.ground !== b.ground) { ch++; sw++; if (a.result && a.result.winner === t.id) pen++; }
+        if (b.start - a.end < tr) b2b++; }
       if (ch > 1) viol += ch - 1;
     } });
-    return { sw, viol, tight, b2b, pen };
+    return { sw, viol, b2b, pen, delayed, late };
   };
-  const rollScore = st => { const m = E.metrics(st); return m.sw + 2 * m.viol + 8 * m.tight + E.WB * m.b2b + E.WPEN * m.pen; };
+  const rollScore = st => { const m = E.metrics(st); return m.sw + 2 * m.viol + E.WB * m.b2b + E.WDEL * m.delayed + m.late / 5 + E.WPEN * m.pen; };
   function rollout(st, id, cand, chain) {
     const c = miniClone(st); E._roll = true;
     try {
-      place(c, id, cand.assign); c.stages[id] = { at: 0 };
+      place(c, id, cand.laid); c.stages[id] = { at: 0 };
       const sim = sid => c.matches.filter(m => m.stage === sid && m.status !== 'done').forEach(m => { const aw = Math.random() < .5, ra = 70 + Math.floor(Math.random() * 70), rb = 70 + Math.floor(Math.random() * 70); m.result = { winner: aw ? m.a : m.b, ra: aw ? Math.max(ra, rb + 1) : Math.min(ra, rb - 1), oa: '10', rb: aw ? Math.min(rb, ra - 1) : Math.max(rb, ra + 1), ob: '10' }; m.status = 'done'; });
       sim(id);
       for (const nid of chain) { E.generate(c, nid); sim(nid); }
@@ -233,8 +244,7 @@
   function choose(st, id, cands) {
     cands.sort((a, b) => cmpv(skey(a), skey(b)));
     const chain = CHAIN[id]; if (!E.LOOK.on || E._roll || !chain || cands.length < 2) return cands[0];
-    const best = cands[0]; if (best.tight > 0 && E.WT >= 1000) return best;
-    const ok = E.WT >= 1000 ? cands.filter(c => c.tight === 0) : cands;
+    const okc = cands.filter(c => !c.late), ok = okc.length ? okc : cands;
     const ms = Math.min(...ok.map(c => c.cost));
     const pool = ok.filter(c => c.cost <= ms + 3).slice(0, id === 'R4' ? 14 : 48);
     if (pool.length < 2) return pool[0];
@@ -245,19 +255,19 @@
     near.sort((x, y) => (E.WPEN ? x.c.pen - y.c.pen : 0) || x.sc - y.sc || x.c.cost - y.c.cost);
     return near[0].c;
   }
-  /* turn a chosen assignment into match records (with Travel for / back-to-back info) */
-  function place(st, id, assign) {
+  /* turn a chosen layout into match records (with Travel for / back-to-back / delay info) */
+  function place(st, id, laid) {
     const tr = st.settings.travelMins, made = [];
-    assign.slice().sort((x, y) => x.pos.no - y.pos.no).forEach(({ p, pos }) => {
-      const travel = [], b2b = [], start = pos.start;
+    laid.slice().sort((x, y) => x.pos.no - y.pos.no).forEach(({ p, pos, start, end }) => {
+      const travel = [], b2b = [], delay = start - pos.start;
       [p[0], p[1]].forEach(t => {
         const prev = st.matches.filter(m => m.day === pos.day && (m.a === t || m.b === t) && m.start < start).sort((a, b) => b.start - a.start)[0];
         if (!prev) return; const rest = start - prev.end;
-        if (prev.ground !== pos.ground) travel.push({ team: t, from: prev.ground, prevNo: prev.no, rest, tight: rest < tr });
-        if (rest < tr) b2b.push(t);
+        if (prev.ground !== pos.ground) travel.push({ team: t, from: prev.ground, prevNo: prev.no, rest, delay: delay > 0 && rest <= tr ? delay : 0, tight: delay > 0 && rest <= tr });
+        else if (rest < tr) b2b.push(t);
       });
       const m = { no: pos.no, stage: p.stage, round: p.round || null, group: p.group, kind: p.kind, label: p.label, day: pos.day, slot: pos.slot, ground: pos.ground,
-        start, end: start + E.dur(st, pos.day), a: p[0], b: p[1], travel, b2b, status: 'planned', chUrl: '', result: null, actualEnd: null };
+        plan: pos.start, delay, start, end, a: p[0], b: p[1], travel, b2b, status: 'planned', chUrl: '', result: null, actualEnd: null };
       st.matches.push(m); made.push(m);
     });
     return made;
@@ -265,7 +275,7 @@
   /* pairs: [a,b] arrays carrying group/kind/label/round/stage (and optional onlyDay) */
   E.scheduleBatch = function (st, id, pairs) {
     const ctx = context(st), cands = allAssign(st, id, pairs, ctx), best = choose(st, id, cands);
-    return place(st, id, best.assign);
+    return place(st, id, best.laid);
   };
 
   /* ---------- stage generation ---------- */

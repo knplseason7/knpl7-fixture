@@ -363,17 +363,38 @@ function psPosMap(st){const o={};['A','B'].forEach(g=>{if(!st.groups[g].length)r
 function psLiveDay(st){const p=st.matches.filter(m=>m.status!=='done').sort((a,b)=>a.day-b.day||a.start-b.start)[0];if(p)return p.day;const all=st.matches.slice().sort((a,b)=>b.day-a.day)[0];return all?all.day:1;}
 const gshort=(st,g)=>String(st.settings.grounds[g]).split(' ')[0].toUpperCase();
 const short=(m)=>m?(m.kind==='league'?'Round '+m.round+(m.day>=3?' · Grp '+m.group:''):m.kind==='Final'?'FINAL':m.label):'';
-function fxRow(st,r,first){
+const ordn=n=>n+(['st','nd','rd'][n-1]||'th');
+function ladderCap(st,m){
+  if(m.kind!=='league')return '';
+  if(m.round===1)return `🎲 ${x('Drawn by lot','നറുക്കെടുപ്പ്')}`;
+  const sn=(st.snap||{})[m.stage];if(!sn||!sn[m.group])return '';
+  const pa=sn[m.group][m.a],pb=sn[m.group][m.b];if(!pa||!pb)return '';
+  const lo=Math.min(pa,pb),hi=Math.max(pa,pb),std=lo%2===1&&hi===lo+1;
+  return `🪜 ${ordn(lo)} v ${ordn(hi)}${std?'':' · '+x('shuffled, already met','മാറ്റിയിട്ടു, നേരത്തെ കളിച്ചു')}`;
+}
+function mcx(st,r){
   const m=r.match,mine=m&&st.my&&(m.a===st.my||m.b===st.my),cls=!m?'blank':m.status==='done'?'done':'live';
-  const side=id=>{const w=m.result&&m.result.winner===id,l=m.result&&!w,me=id===st.my;return `<span class="tm2${w?' win':''}${l?' lose':''}${me?' me':''}">${crest(id)}<b>${me?'⭐ ':''}${esc(KE.tname(st,id))}</b>${w?'<i title="Won">✓</i>':''}</span>`;};
-  const teams=m?`${side(m.a)}<span class="vs2">v</span>${side(m.b)}`:`<span class="tm2 empty">—</span><span class="vs2">v</span><span class="tm2 empty">—</span>`;
-  const trv=m&&(m.travel||[]).length?m.travel.map(t=>`<span class="trv${t.team===st.my?' me':''}">✈ <b>${esc(KE.tname(st,t.team))}</b> <small>from ${esc(gshort(st,t.from))}${t.tight?' · short time':''}</small></span>`).join(''):'<span class="muted">–</span>';
-  return `<div class="fx ${cls}${mine?' mine':''}${first?' first':''}${m&&(m.travel||[]).length?'':' notrv'}"><div class="c no">#${r.no}</div><div class="c time">${KE.clock12(st,r.start)}</div><div class="c gr"><span class="gtag g${r.ground}">${esc(gshort(st,r.ground))}</span></div><div class="c rd">${m?esc(short(m)):esc(r.roundName)}</div><div class="c tms">${teams}</div><div class="c tv">${trv}</div><div class="c act">${m?`<button class="ico" title="Thumbnail" data-act="psthumb" data-n="${m.no}">🖼</button>`:''}</div></div>`;
+  const team=id=>{
+    if(!id)return `<div class="tb"><span class="crest big q">?</span><b>?</b></div>`;
+    const w=m.result&&m.result.winner===id,l=m.result&&!w,me=id===st.my,tv=(m.travel||[]).some(t=>t.team===id);
+    return `<div class="tb${w?' win':''}${l?' lose':''}${me?' me':''}${tv?' tv':''}">${w?'<span class="crown">👑</span>':''}${crest(id,true)}<b>${me?'⭐ ':''}${esc(KE.tname(st,id))}</b>${tv?'<span class="tvb">✈ TRAVEL</span>':''}</div>`;
+  };
+  const when=m&&m.delay>0?`${KE.clock12(st,m.start)} <small class="late">+${m.delay} min</small>`:KE.clock12(st,m?m.start:r.start);
+  const trv=m?(m.travel||[]).map(t=>`<div class="trbar${t.team===st.my?' me':''}">✈ <b>${esc(KE.tname(st,t.team))}</b> ${x('travels from','യാത്ര ചെയ്യണം:')} ${esc(gshort(st,t.from))}${t.delay?` · ${x('starts '+t.delay+' min later (ground change time)',t.delay+' മിനിറ്റ് വൈകി തുടങ്ങും (ഗ്രൗണ്ട് മാറ്റ സമയം)')}`:''}</div>`).join(''):'';
+  const cap=m?ladderCap(st,m):'';
+  return `<div class="mcx ${cls}${mine?' mine':''}${m&&(st.fresh||[]).includes(m.no)?' fresh':''}"><div class="mh"><span class="n">#${r.no}</span><span class="gtag g${r.ground}">${esc(gshort(st,r.ground))}</span><span class="rdl">${m?esc(short(m)):esc(r.roundName)}</span>${m?`<button class="ico" title="Thumbnail" data-act="psthumb" data-n="${m.no}">🖼</button>`:''}</div>
+  <div class="vsr">${team(m&&m.a)}<span class="vsb">VS</span>${team(m&&m.b)}</div>
+  ${m?`<div class="mf"><span>🕒 ${when}</span>${cap?`<span class="cap">${cap}</span>`:''}</div>`:`<div class="mf"><span>🕒 ~${KE.clock12(st,r.start)}</span><span class="cap">🔒 ${x('opens when this round is generated','ഈ റൗണ്ട് ഉണ്ടാക്കുമ്പോൾ തുറക്കും')}</span></div>`}${trv}</div>`;
 }
 function fxTable(st,day){
-  const rows=KE.grid(st).filter(r=>r.day===day);
-  const head=`<div class="fx head"><div class="c no">Match</div><div class="c time">Time</div><div class="c gr">Ground</div><div class="c rd">Round</div><div class="c tms">Teams</div><div class="c tv">Travel for</div><div class="c act"></div></div>`;
-  return `<div class="fxwrap">${head}${rows.map(r=>fxRow(st,r,r.ground===0)).join('')}</div>`;
+  const rows=KE.grid(st).filter(r=>r.day===day),by=[];
+  rows.forEach(r=>{let g=by[by.length-1];if(!g||g.sid!==r.stage){g={sid:r.stage,slots:[]};by.push(g);}let sl=g.slots[g.slots.length-1];if(!sl||sl.slot!==r.slot){sl={slot:r.slot,rows:[]};g.slots.push(sl);}sl.rows.push(r);});
+  const head=(sid,done,ms)=>{const sd=KE.STAGES.find(q=>q.id===sid),stat=!ms.length?`<span class="chip lock">🔒 ${x('Not generated yet','ഇതുവരെ ഉണ്ടാക്കിയിട്ടില്ല')}</span>`:done?`<span class="chip done">✓ ${x('Completed (tap to see)','കഴിഞ്ഞു (കാണാൻ അമർത്തൂ)')}</span>`:`<span class="chip ready">● ${x('Live','ലൈവ്')}</span>`;return `<b>${esc(KE.STAGE_NAME[sid])}${sd.group?' · Group '+sd.group:''}</b>${stat}`;};
+  return '<div class="lvls">'+by.map(g=>{
+    const ms=st.matches.filter(m=>m.stage===g.sid),done=ms.length&&ms.every(m=>m.status==='done');
+    const cards=g.slots.map(sl=>`<div class="slotg">${sl.rows.map(r=>mcx(st,r)).join('')}</div>`).join('');
+    return done?`<details class="lvl donegrp"><summary class="lvl-h">${head(g.sid,true,ms)}</summary>${cards}</details>`:`<div class="lvl"><div class="lvl-h">${head(g.sid,false,ms)}</div>${cards}</div>`;
+  }).join('')+'</div>';
 }
 function resultsList(st){
   const ds=st.matches.filter(m=>m.status==='done').sort((a,b)=>b.day-a.day||b.start-a.start||b.no-a.no);
@@ -440,7 +461,7 @@ function psView(){
   if(tab==='fx'){
     const live=psLiveDay(st);
     h+=`<div class="daytabs">${[1,2,3,4].map(d=>`<button class="dt${day===d?' on':''}" data-act="psday" data-d="${d}">${KE.fmtDate(st,d).slice(0,11)}${live===d&&st.matches.length?' •':''}</button>`).join('')}</div>`;
-    h+=`<div class="small muted legend"><span class="tvb">✈ TRAVEL</span> ${x('= this team must change ground.','= ഈ ടീം ഗ്രൗണ്ട് മാറണം.')} <span class="muted">${x('Empty rows fill when that round is generated.','ഒഴിഞ്ഞ വരികൾ ആ റൗണ്ട് ഉണ്ടാക്കുമ്പോൾ നിറയും.')}</span></div>`;
+    h+=`<div class="small muted legend"><span class="tvb">✈ TRAVEL</span> ${x('= this team must change ground. If its last match just ended, its match starts 30 min after that (ground change time).','= ഈ ടീം ഗ്രൗണ്ട് മാറണം. അവസാന മത്സരം കഴിഞ്ഞ ഉടനെയാണെങ്കിൽ, 30 മിനിറ്റ് കഴിഞ്ഞേ ഈ മത്സരം തുടങ്ങൂ (ഗ്രൗണ്ട് മാറ്റ സമയം).')} <span class="muted">${x('Locked cards open when that round is generated. Times shown are reference times.','പൂട്ടിയ കാർഡുകൾ ആ റൗണ്ട് ഉണ്ടാക്കുമ്പോൾ തുറക്കും. കാണിച്ചിരിക്കുന്നത് സാധാരണ സമയമാണ്.')}</span></div>`;
     h+=fxTable(st,day);
   } else if(tab==='res')h+=resultsList(st); else h+=ladderView(st);
   if(nx)h+=`<div class="fabbar"><button class="btn gold big" data-act="${nx.act}" data-s="${nx.s}">${esc(nx.label)}</button></div>`;
@@ -549,8 +570,8 @@ document.addEventListener('click',async e=>{
   case 'lang':LANG=el.dataset.l;try{localStorage.setItem('knpl7_lang',LANG);}catch(e){}render();break;
   case 'psreset':if(confirm('Reset your practice simulation?')){PS=psNew();psDay=1;psSave();render();}break;
   case 'psgroups':{const ids=shuffle(S.teams.map(t=>t.id));PS=psNew();PS.groups={A:ids.slice(0,8),B:ids.slice(8)};PS.draw.groupsDone=true;psLot(PS);psSave();render();break;}
-  case 'psgen':{const sd=PSTEPS.find(q=>q.id===el.dataset.s);sd.stages.forEach(id=>{if(!PS.stages[id])KE.generate(PS,id);});PS.tab='fx';PS.day=psLiveDay(PS);psSave();render();window.scrollTo({top:0,behavior:'smooth'});break;}
-  case 'psres':{const sd=PSTEPS.find(q=>q.id===el.dataset.s),before=psPosMap(PS);sd.stages.forEach(id=>psPlay(PS,id));PS.ladder={name:sd.name,before};PS.news=psNews(PS,sd,before);PS.tab='lad';PS.day=psLiveDay(PS);psSave();render();window.scrollTo({top:0,behavior:'smooth'});break;}
+  case 'psgen':{const sd=PSTEPS.find(q=>q.id===el.dataset.s);PS.snap=PS.snap||{};PS.fresh=[];sd.stages.forEach(id=>{if(!PS.stages[id]){if(id!=='A-R1'&&id!=='B-R1')PS.snap[id]=psPosMap(PS);KE.generate(PS,id);PS.matches.filter(m=>m.stage===id).forEach(m=>PS.fresh.push(m.no));}});PS.tab='fx';PS.day=psLiveDay(PS);psSave();render();window.scrollTo({top:0,behavior:'smooth'});break;}
+  case 'psres':{const sd=PSTEPS.find(q=>q.id===el.dataset.s),before=psPosMap(PS);PS.fresh=[];sd.stages.forEach(id=>{psPlay(PS,id);PS.matches.filter(m=>m.stage===id).forEach(m=>PS.fresh.push(m.no));});PS.ladder={name:sd.name,before};PS.news=psNews(PS,sd,before);PS.tab='lad';PS.day=psLiveDay(PS);psSave();render();window.scrollTo({top:0,behavior:'smooth'});break;}
   case 'psday':PS.day=+el.dataset.d;psSave();render();break;
   case 'pstab':PS.tab=el.dataset.t;psSave();render();break;
   case 'psthumb':psThumbModal(n);break;
