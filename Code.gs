@@ -4,11 +4,25 @@
  *   Execute as: Me   |   Who has access: Anyone
  * Sheet tabs are created automatically: State, Downloads, Log
  */
-const SS = SpreadsheetApp.getActiveSpreadsheet();
 const P = PropertiesService.getScriptProperties();
 
+/* The data Sheet. Works whether this script was opened from a Sheet (Extensions > Apps Script) or created on its own:
+   if there is no Sheet attached, one called "KNPL-7 Fixture Data" is created in your Drive the first time and remembered. */
+function getSS_(){
+  let ss = null; try{ ss = SpreadsheetApp.getActiveSpreadsheet(); }catch(e){}
+  if(ss) return ss;
+  const id = P.getProperty('SS_ID'); if(id) return SpreadsheetApp.openById(id);
+  ss = SpreadsheetApp.create('KNPL-7 Fixture Data'); P.setProperty('SS_ID', ss.getId()); return ss;
+}
+/* Run this once from the editor (select "setup", click Run) to grant permissions and create the sheet tabs. */
+function setup(){
+  sheet('State',['chunk','json']); sheet('Downloads',['When','Name','Mobile','Match']); sheet('Log',['When','Who','Mobile']);
+  try{ UrlFetchApp; DriveApp; }catch(e){}
+  return 'Setup done. Sheet: ' + getSS_().getUrl();
+}
+
 function out(o){ return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
-function sheet(n, hdr){ let s = SS.getSheetByName(n); if(!s){ s = SS.insertSheet(n); if(hdr) s.appendRow(hdr);} return s; }
+function sheet(n, hdr){ const SS = getSS_(); let s = SS.getSheetByName(n); if(!s){ s = SS.insertSheet(n); if(hdr) s.appendRow(hdr);} return s; }
 
 function doGet(){ return out({ok:true, service:'KNPL-7 fixture'}); }
 
@@ -68,7 +82,7 @@ function saveState_(st, ver){
   } finally { lock.releaseLock(); }
 }
 function getState_(){
-  const s = SS.getSheetByName('State'); if(!s || s.getLastRow()<2) return null;
+  const s = getSS_().getSheetByName('State'); if(!s || s.getLastRow()<2) return null;
   const v = s.getRange(2,2,s.getLastRow()-1,1).getValues().map(r=>r[0]).join('');
   try{ return JSON.parse(v);}catch(e){ return null; }
 }
