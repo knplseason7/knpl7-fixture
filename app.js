@@ -396,6 +396,112 @@ function fxTable(st,day){
     return done?`<details class="lvl donegrp"><summary class="lvl-h">${head(g.sid,true,ms)}</summary>${cards}</details>`:`<div class="lvl"><div class="lvl-h">${head(g.sid,false,ms)}</div>${cards}</div>`;
   }).join('')+'</div>';
 }
+/* ---------- followed team: ladder journey + PDF report ---------- */
+const myGroup=st=>st.my?(st.groups.A.includes(st.my)?'A':st.groups.B.includes(st.my)?'B':null):null;
+const LGR=['R1','R2','R3','R4','R5'];
+function journeyView(st){
+  const g=myGroup(st);if(!g)return '';
+  const hist=st.hist||{},pos=LGR.map(id=>hist[id]&&hist[id][g]?hist[id][g][st.my]:null),py=p=>18+(p-1)*(100/7),px=i=>46+i*58;
+  let svg=`<svg viewBox="0 0 340 158" class="jsvg"><rect x="30" y="${py(1)-12}" width="300" height="${py(4)-py(1)+24}" rx="8" fill="#e1f2e7"/>`;
+  [1,4,8].forEach(p=>svg+=`<text x="4" y="${py(p)+4}" font-size="10" fill="#6f6366">${ordn(p)}</text>`);
+  LGR.forEach((id,i)=>svg+=`<text x="${px(i)}" y="152" font-size="10" text-anchor="middle" fill="#6f6366">${id}</text>`);
+  const pts=pos.map((p,i)=>p?[px(i),py(p),p]:null).filter(Boolean);
+  if(pts.length>1)svg+=`<polyline points="${pts.map(q=>q[0]+','+q[1]).join(' ')}" fill="none" stroke="#6b3fb0" stroke-width="3" stroke-linejoin="round"/>`;
+  pts.forEach(q=>svg+=`<circle cx="${q[0]}" cy="${q[1]}" r="11" fill="#6b3fb0"/><text x="${q[0]}" y="${q[1]+4}" font-size="11" font-weight="700" text-anchor="middle" fill="#fff">${q[2]}</text>`);
+  svg+='</svg>';
+  const last=[...pos].reverse().find(Boolean),ko=['QF','SF','Final'].map(k=>{const m=st.matches.find(q=>(q.kind===k||q.label&&q.label.startsWith(k))&&(q.a===st.my||q.b===st.my));return m?{k,m}:null;}).filter(Boolean);
+  const fin=st.matches.find(m=>m.kind==='Final'&&m.status==='done'&&m.result.winner===st.my);
+  const ms=st.matches.filter(m=>m.a===st.my||m.b===st.my).sort((a,b)=>a.day-b.day||a.start-b.start);
+  let h=`<div class="card"><h2>${crest(st.my)} ${esc(KE.tname(st,st.my))} · ${x('Ladder journey','ലാഡർ യാത്ര')}</h2><p class="muted small">${x('This line shows where your team stood on the ladder after each round. The green band is the top 4, the quarter-final places.','ഓരോ റൗണ്ടിനു ശേഷവും ലാഡറിൽ നിങ്ങളുടെ ടീം എവിടെയായിരുന്നു എന്ന് ഈ രേഖ കാണിക്കുന്നു. പച്ച ഭാഗം ആദ്യ 4 സ്ഥാനങ്ങൾ (ക്വാർട്ടർ ഫൈനൽ).')}</p>${last?svg:`<p class="muted">${x('Play Round 1 to start your journey.','യാത്ര തുടങ്ങാൻ റൗണ്ട് 1 കളിക്കൂ.')}</p>`}
+  ${ko.length||fin?`<div class="koRow">${['QF','SF','Final'].map(k=>{const f=ko.find(q=>q.k===k);const w=f&&f.m.result&&f.m.result.winner===st.my;return `<span class="chip ${f?(w?'done':'planned'):'lock'}">${k==='Final'?'Final':k}${f?(w?' ✓':' …'):''}</span>`;}).join('')}${fin?'<span class="chip ready">🏆 Champions</span>':''}</div>`:''}</div>`;
+  h+=`<div class="card"><h2>${x('My matches','എന്റെ മത്സരങ്ങൾ')}</h2><div class="resl">${ms.length?ms.map(m=>{const opp=m.a===st.my?m.b:m.a,tv=(m.travel||[]).find(t=>t.team===st.my);return `<div class="rs"><div><div class="rs-t"><b>${esc(short(m))}</b> v ${esc(KE.tname(st,opp))}</div><div class="small muted">#${m.no} · ${KE.fmtDate(st,m.day).slice(0,11)} · ${KE.clock12(st,m.start)} · ${esc(gshort(st,m.ground))}${tv?` · <span class="trav">✈ ${x('travel from','യാത്ര:')} ${esc(gshort(st,tv.from))}${tv.delay?' (+'+tv.delay+' min)':''}</span>`:''}</div></div>${m.result?`<span class="chip ${m.result.winner===st.my?'done':'planned'}">${m.result.winner===st.my?'WON':'LOST'}</span>`:'<span class="chip created">Upcoming</span>'}</div>`;}).join(''):`<p class="muted">${x('Your matches appear as rounds are generated.','റൗണ്ടുകൾ ഉണ്ടാക്കുന്നതിനനുസരിച്ച് നിങ്ങളുടെ മത്സരങ്ങൾ ഇവിടെ കാണാം.')}</p>`}</div></div>`;
+  return h;
+}
+/* ground changes per day, and how many were straight after the previous match */
+function groundStats(st){
+  const tr=st.settings.travelMins,days=[1,2,3,4].map(d=>({day:d,matches:st.matches.filter(m=>m.day===d).length,changes:0,b2bChanges:0,b2bSame:0})),ev=[];
+  st.teams.forEach(t=>{for(let d=1;d<=4;d++){
+    const seq=st.matches.filter(m=>m.day===d&&(m.a===t.id||m.b===t.id)).sort((a,b)=>a.start-b.start);
+    for(let i=1;i<seq.length;i++){const a=seq[i-1],b=seq[i],rest=b.start-a.end,row=days[d-1];
+      if(a.ground!==b.ground){row.changes++;const bb=rest<60&&b.kind!=='Final';if(bb)row.b2bChanges++;ev.push({day:d,no:b.no,team:t.id,from:a.ground,to:b.ground,rest,delay:b.delay||0,b2b:bb,kind:b.kind});}
+      else if(rest<tr)row.b2bSame++;}
+  }});
+  return {days,ev:ev.sort((p,q)=>p.no-q.no)};
+}
+async function psPdf(){
+  if(!window.PDFLib)return toast('PDF tool is still loading, try again in a moment',1);
+  const st=PS;if(!st.matches.length)return toast('Generate and play a round first',1);
+  const {PDFDocument,StandardFonts,rgb}=window.PDFLib,doc=await PDFDocument.create(),F=await doc.embedFont(StandardFonts.Helvetica),B=await doc.embedFont(StandardFonts.HelveticaBold);
+  const PW=842,PH=595,M=36,CW=PW-2*M,san=s=>String(s==null?'':s).replace(/[^\x20-\x7E -ÿ]/g,'').replace(/·/g,'-');
+  const C={maroon:rgb(.23,.06,.1),gold:rgb(.95,.71,.27),cream:rgb(1,.96,.86),grey:rgb(.45,.4,.4),line:rgb(.88,.84,.74),mine:rgb(.89,.84,.98),green:rgb(.88,.95,.9),red:rgb(.7,.12,.16),white:rgb(1,1,1),ink:rgb(.14,.1,.11),amber:rgb(1,.95,.82)};
+  let page,y;
+  const np=()=>{page=doc.addPage([PW,PH]);y=PH-M;};
+  const need=h=>{if(y-h<M+14)np();};
+  const fit=(s,w,sz,f)=>{s=san(s);if(f.widthOfTextAtSize(s,sz)<=w)return s;while(s.length>1&&f.widthOfTextAtSize(s+'..',sz)>w)s=s.slice(0,-1);return s+'..';};
+  const T=(s,x0,y0,o)=>{o=o||{};page.drawText(san(s),{x:x0,y:y0,size:o.size||9,font:o.bold?B:F,color:o.color||C.ink});};
+  const H=(s,sub)=>{need(40);y-=8;T(s,M,y-14,{size:14,bold:1,color:C.maroon});if(sub)T(sub,M,y-27,{size:8.5,color:C.grey});y-=(sub?36:24);};
+  const table=(cols,rows,o)=>{
+    o=o||{};const rh=o.rh||15,sz=o.size||8.5,tw=cols.reduce((a,c)=>a+c.w,0);
+    const head=()=>{need(rh*2);page.drawRectangle({x:M,y:y-rh,width:tw,height:rh,color:C.maroon});let cx=M;cols.forEach(c=>{const hh=fit(c.h,c.w-8,sz,B);page.drawText(hh,{x:c.r?cx+c.w-4-B.widthOfTextAtSize(hh,sz):cx+4,y:y-rh+4.5,size:sz,font:B,color:C.cream});cx+=c.w;});y-=rh;};
+    head();
+    rows.forEach(r=>{if(y-rh<M+14){np();head();}
+      if(r.fill)page.drawRectangle({x:M,y:y-rh,width:tw,height:rh,color:r.fill});
+      page.drawLine({start:{x:M,y:y-rh},end:{x:M+tw,y:y-rh},thickness:.4,color:C.line});
+      let cx=M;cols.forEach((c,i)=>{const v=r.c[i],cell=(v&&typeof v==='object')?v:{t:v};const f=(r.bold||cell.bold)?B:F;const txt=fit(cell.t,c.w-8,sz,f),tx=c.r?cx+c.w-4-f.widthOfTextAtSize(txt,sz):cx+4;
+        if(cell.fill)page.drawRectangle({x:cx+1,y:y-rh+1,width:c.w-2,height:rh-2,color:cell.fill});
+        page.drawText(txt,{x:tx,y:y-rh+4.5,size:sz,font:f,color:cell.color||C.ink});cx+=c.w;});
+      y-=rh;});
+    y-=8;
+  };
+  const mt=id=>KE.tname(st,id),gs=g=>gshort(st,g),my=st.my,mine=m=>my&&(m.a===my||m.b===my);
+  /* title */
+  np();page.drawRectangle({x:0,y:PH-64,width:PW,height:64,color:C.maroon});
+  T('KNPL-7 Dynamic Ladder - Practice Simulation',M,PH-30,{size:20,bold:1,color:C.gold});
+  T('Practice results only. Not the real tournament.  Generated '+new Date().toLocaleString('en-GB'),M,PH-50,{size:9,color:C.cream});y=PH-64-14;
+  const fin=st.matches.find(m=>m.kind==='Final'&&m.status==='done'),g0=myGroup(st);
+  if(fin){need(30);page.drawRectangle({x:M,y:y-26,width:CW,height:26,color:C.gold});T('Champions: '+mt(fin.result.winner)+(fin.result.winner===my?'   (the team you followed!)':''),M+10,y-18,{size:13,bold:1,color:C.maroon});y-=34;}
+  if(my){need(26);page.drawRectangle({x:M,y:y-22,width:CW,height:22,color:C.mine});T('Team followed: '+mt(my)+(g0?' (Group '+g0+')':'')+'.  Rows of this team are shaded purple in every table.',M+8,y-15,{size:10,bold:1,color:rgb(.36,.18,.63)});y-=30;}
+  /* ground change summary */
+  const gst=groundStats(st),tot=gst.days.reduce((a,d)=>({m:a.m+d.matches,c:a.c+d.changes,b:a.b+d.b2bChanges,s:a.s+d.b2bSame}),{m:0,c:0,b:0,s:0});
+  H('1. Ground changes by day','A ground change = a team plays its next match of the day at the other ground. Back-to-back = it starts right after its last match, so it gets '+st.settings.travelMins+' minutes of ground-change time.');
+  table([{h:'Day',w:50},{h:'Date',w:130},{h:'Matches',w:70,r:1},{h:'Ground changes',w:110,r:1},{h:'Of which back-to-back',w:140,r:1},{h:'Back-to-back, same ground',w:160,r:1}],
+    gst.days.map(d=>({c:['Day '+d.day,KE.fmtDate(st,d.day),d.matches,d.changes,d.b2bChanges,d.b2bSame]})).concat([{c:['Total','',tot.m,tot.c,tot.b,tot.s],bold:1,fill:C.amber}]),{rh:16});
+  if(gst.ev.length){
+    H('Every ground change','Match number is the match the team travels for.');
+    table([{h:'Day',w:36},{h:'Match',w:44},{h:'Team',w:190},{h:'From',w:70},{h:'To',w:70},{h:'Rest before (min)',w:100,r:1},{h:'Start delayed (min)',w:110,r:1},{h:'Back-to-back?',w:100}],
+      gst.ev.map(e=>({fill:e.team===my?C.mine:(e.b2b?C.amber:null),c:[e.day,'#'+e.no,mt(e.team),gs(e.from),gs(e.to),e.rest,e.delay?'+'+e.delay:'0',e.b2b?'Yes':(e.kind==='Final'?'No (final break)':'No')]})),{rh:14,size:8});
+  }
+  /* journey */
+  if(my&&g0){
+    const mm=st.matches.filter(mine).sort((a,b)=>a.day-b.day||a.start-b.start),hist=st.hist||{};
+    H('2. Journey of '+mt(my),'Ladder position of the team after each league round, then its matches.');
+    table([{h:'After',w:80},{h:'Ladder position (Group '+g0+')',w:180}].concat([]),LGR.filter(id=>hist[id]&&hist[id][g0]).map(id=>({c:[id.replace('R','Round '),ordn(hist[id][g0][my])+' of 8'+(hist[id][g0][my]<=4?'  (in the top 4)':'')],fill:hist[id][g0][my]<=4?C.green:null})),{rh:15});
+    table([{h:'#',w:34},{h:'Round',w:90},{h:'Opponent',w:200},{h:'Result',w:60},{h:'Day / time',w:130},{h:'Ground',w:70},{h:'Travel',w:170}],
+      mm.map(m=>{const o=m.a===my?m.b:m.a,tv=(m.travel||[]).find(t=>t.team===my);return {c:['#'+m.no,short(m),mt(o),m.result?(m.result.winner===my?'WON':'LOST'):'-','Day '+m.day+' '+KE.clock12(st,m.start),gs(m.ground),tv?'from '+gs(tv.from)+(tv.delay?' (+'+tv.delay+' min)':''):'-'],fill:m.result&&m.result.winner===my?C.green:null};}),{rh:15});
+  }
+  /* ladder movement */
+  H((my?'3':'2')+'. Ladder movement','Position of each team after each league round. Green = top 4 (quarter-final places).');
+  ['A','B'].forEach(g=>{
+    const fin5=(hist=>hist.R5&&hist.R5[g]||null)(st.hist||{}),order=fin5?Object.keys(fin5).sort((a,b)=>fin5[a]-fin5[b]):KE.standings(st,g).map(r=>r.id),pts={};KE.standings(st,g).forEach(r=>pts[r.id]=r);
+    const done=LGR.filter(id=>(st.hist||{})[id]&&st.hist[id][g]);
+    if(!done.length)return;
+    table([{h:'Group '+g+' - Team',w:200}].concat(done.map(id=>({h:id.replace('R','Round '),w:70,r:1}))).concat([{h:'Pts',w:50,r:1},{h:'W',w:40,r:1},{h:'NRR',w:60,r:1}]),
+      order.map(id=>{const p=pts[id]||{};return {fill:id===my?C.mine:null,c:[mt(id)].concat(done.map(h=>{const v=st.hist[h][g][id];return {t:ordn(v),fill:id===my?null:(v<=4?C.green:null)};})).concat([p.pts,p.w,(p.nrr>=0?'+':'')+(p.nrr||0).toFixed(2)])};}),{rh:14.5,size:8.5});
+  });
+  /* all matches */
+  H((my?'4':'3')+'. All matches and results','Winner is marked (W). Travel shows the team that changed ground and where it came from.');
+  [1,2,3,4].forEach(d=>{
+    const ms=st.matches.filter(m=>m.day===d).sort((a,b)=>a.no-b.no);if(!ms.length)return;
+    need(30);T('Day '+d+' - '+KE.fmtDate(st,d),M,y-11,{size:10,bold:1,color:C.maroon});y-=16;
+    table([{h:'#',w:30},{h:'Time',w:56},{h:'Ground',w:60},{h:'Round',w:84},{h:'Match',w:238},{h:'Winner',w:120},{h:'Score',w:62},{h:'Travel',w:122}],
+      ms.map(m=>{const w=m.result&&m.result.winner,tv=(m.travel||[]).map(t=>mt(t.team)+' from '+gs(t.from)+(t.delay?' +'+t.delay:'')).join('; ');
+        return {fill:mine(m)?C.mine:null,c:['#'+m.no,KE.clock12(st,m.start)+(m.delay?'*':''),gs(m.ground),short(m),mt(m.a)+' v '+mt(m.b),w?mt(w)+' (W)':'-',m.result&&m.result.ra!==''&&m.result.ra!=null?m.result.ra+' v '+m.result.rb:'-',tv||'-'],bold:0};}),{rh:14.5,size:8});
+  });
+  T('* start time moved later because the team had just played at the other ground (ground change time).',M,y-8,{size:8,color:C.grey});
+  doc.getPages().forEach((p,i,a)=>p.drawText('KNPL-7 Fixture Centre - practice simulation   |   page '+(i+1)+' of '+a.length,{x:M,y:18,size:8,font:F,color:C.grey}));
+  const bytes=await doc.save(),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));a.download='KNPL7_Practice_Simulation'+(my?'_'+mt(my).replace(/\W+/g,'_'):'')+'.pdf';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);
+  toast('PDF downloaded');
+}
 function resultsList(st){
   const ds=st.matches.filter(m=>m.status==='done').sort((a,b)=>b.day-a.day||b.start-a.start||b.no-a.no);
   if(!ds.length)return `<div class="card muted">${x('No results yet. Play a round first.','ഫലങ്ങൾ ഇതുവരെ ഇല്ല. ആദ്യം ഒരു റൗണ്ട് കളിക്കൂ.')}</div>`;
@@ -450,20 +556,20 @@ function psView(){
   if(!st.draw.groupsDone)h+=`<div class="card top"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><h2 style="margin:0">${x('Practice mode','പ്രാക്ടീസ് മോഡ്')} <span class="chip ready">Not real</span></h2></div>
   <p class="muted small" style="margin:6px 0 10px">${x('Play the whole tournament in a few taps. Nothing here is real and nobody else can see it.','ഏതാനും ടാപ്പുകൾ കൊണ്ട് ടൂർണമെന്റ് മുഴുവൻ കളിച്ചു നോക്കൂ. ഇതൊന്നും യഥാർത്ഥമല്ല, മറ്റാരും ഇത് കാണില്ല.')}</p>
   ${sel}<p class="small muted" style="margin-top:6px">${x('Pick your team and it wins every match and lifts the trophy!','നിങ്ങളുടെ ടീമിനെ തിരഞ്ഞെടുത്താൽ അത് എല്ലാ കളിയും ജയിച്ച് കപ്പ് നേടും!')}</p></div>`;
-  else h+=`<div class="row topbar" style="flex-wrap:nowrap;margin-bottom:10px">${sel}<button class="btn ghost sm" data-act="psreset">↺ Reset</button></div>`;
+  else h+=`<div class="row topbar" style="flex-wrap:nowrap;margin-bottom:10px">${sel}<button class="btn ghost sm" data-act="pspdf">⬇ PDF</button><button class="btn ghost sm" data-act="psreset">↺ Reset</button></div>`;
   if(!st.draw.groupsDone){return h+psWheelCard()+'</div>';}
   h+=`<div class="prog">${psSteps(st).map((s,i,arr)=>{const cur=!s.done&&(i===0||arr[i-1].done);return `<span class="${s.done?'done':cur?'cur':''}">${s.done?'✓ ':''}${esc(s.label)}</span>`;}).join('')}</div>`;
   if(fin){const w=fin.result.winner;h+=`<div class="champ">🏆 ${x(`${KE.tname(st,w)} are the CHAMPIONS!`,`${KE.tname(st,w)} ചാമ്പ്യന്മാർ!`)}${w===st.my?'<div class="small">⭐ '+x('Your team won it all!','നിങ്ങളുടെ ടീം കപ്പ് നേടി!')+'</div>':''}</div>`;}
   h+=psMyStrip(st);
   if(nx){const hp=STAGE_HELP[nx.sd.stages[0]];h+=`<div class="card coach"><h2>${nx.kind==='gen'?'Next: '+esc(nx.sd.name):esc(nx.sd.name)+': fixture ready'}</h2><p>${nx.kind==='gen'?x(...hp):x('Fixture is ready. Tap Play to get the results automatically. Then watch how the ladder changes.','ഫിക്സ്ചർ തയ്യാർ. Play അമർത്തിയാൽ ഫലങ്ങൾ ഓട്ടോമാറ്റിക്കായി വരും. എന്നിട്ട് ലാഡർ എങ്ങനെ മാറുന്നു എന്ന് കാണൂ.')}</p></div>`;}
   const tab=st.tab||'fx',day=st.day||psLiveDay(st);
-  h+=`<div class="tabs2">${[['fx','Fixture'],['res','Results'],['lad','Ladder']].map(t=>`<button class="t2${tab===t[0]?' on':''}" data-act="pstab" data-t="${t[0]}">${t[1]}</button>`).join('')}</div>`;
+  h+=`<div class="tabs2">${[['fx','Fixture'],['res','Results'],['lad','Ladder']].concat(st.my?[['me','My team']]:[]).map(t=>`<button class="t2${tab===t[0]?' on':''}" data-act="pstab" data-t="${t[0]}">${t[1]}</button>`).join('')}</div>`;
   if(tab==='fx'){
     const live=psLiveDay(st);
     h+=`<div class="daytabs">${[1,2,3,4].map(d=>`<button class="dt${day===d?' on':''}" data-act="psday" data-d="${d}">${KE.fmtDate(st,d).slice(0,11)}${live===d&&st.matches.length?' •':''}</button>`).join('')}</div>`;
     h+=`<div class="small muted legend"><span class="tvb">✈ TRAVEL</span> ${x('= this team must change ground. If its last match just ended, its match starts 30 min after that (ground change time).','= ഈ ടീം ഗ്രൗണ്ട് മാറണം. അവസാന മത്സരം കഴിഞ്ഞ ഉടനെയാണെങ്കിൽ, 30 മിനിറ്റ് കഴിഞ്ഞേ ഈ മത്സരം തുടങ്ങൂ (ഗ്രൗണ്ട് മാറ്റ സമയം).')} <span class="muted">${x('Locked cards open when that round is generated. Times shown are reference times.','പൂട്ടിയ കാർഡുകൾ ആ റൗണ്ട് ഉണ്ടാക്കുമ്പോൾ തുറക്കും. കാണിച്ചിരിക്കുന്നത് സാധാരണ സമയമാണ്.')}</span></div>`;
     h+=fxTable(st,day);
-  } else if(tab==='res')h+=resultsList(st); else h+=ladderView(st);
+  } else if(tab==='res')h+=resultsList(st); else if(tab==='me'&&st.my)h+=journeyView(st); else h+=ladderView(st);
   if(nx)h+=`<div class="fabbar"><button class="btn gold big" data-act="${nx.act}" data-s="${nx.s}">${esc(nx.label)}</button></div>`;
   else if(fin)h+=`<div class="fabbar"><button class="btn gold big" data-act="psreset">🔁 Play again</button></div>`;
   return h+'</div>';
@@ -571,8 +677,9 @@ document.addEventListener('click',async e=>{
   case 'psreset':if(confirm('Reset your practice simulation?')){PS=psNew();psDay=1;psSave();render();}break;
   case 'psgroups':{const ids=shuffle(S.teams.map(t=>t.id));PS=psNew();PS.groups={A:ids.slice(0,8),B:ids.slice(8)};PS.draw.groupsDone=true;psLot(PS);psSave();render();break;}
   case 'psgen':{const sd=PSTEPS.find(q=>q.id===el.dataset.s);PS.snap=PS.snap||{};PS.fresh=[];sd.stages.forEach(id=>{if(!PS.stages[id]){if(id!=='A-R1'&&id!=='B-R1')PS.snap[id]=psPosMap(PS);KE.generate(PS,id);PS.matches.filter(m=>m.stage===id).forEach(m=>PS.fresh.push(m.no));}});PS.tab='fx';PS.day=psLiveDay(PS);psSave();render();window.scrollTo({top:0,behavior:'smooth'});break;}
-  case 'psres':{const sd=PSTEPS.find(q=>q.id===el.dataset.s),before=psPosMap(PS);PS.fresh=[];sd.stages.forEach(id=>{psPlay(PS,id);PS.matches.filter(m=>m.stage===id).forEach(m=>PS.fresh.push(m.no));});PS.ladder={name:sd.name,before};PS.news=psNews(PS,sd,before);PS.tab='lad';PS.day=psLiveDay(PS);psSave();render();window.scrollTo({top:0,behavior:'smooth'});break;}
+  case 'psres':{const sd=PSTEPS.find(q=>q.id===el.dataset.s),before=psPosMap(PS);PS.fresh=[];sd.stages.forEach(id=>{psPlay(PS,id);PS.matches.filter(m=>m.stage===id).forEach(m=>PS.fresh.push(m.no));});if(['R1','R2','R3','R4','R5'].includes(sd.id)){PS.hist=PS.hist||{};PS.hist[sd.id]=psPosMap(PS);}PS.ladder={name:sd.name,before};PS.news=psNews(PS,sd,before);PS.tab='lad';PS.day=psLiveDay(PS);psSave();render();window.scrollTo({top:0,behavior:'smooth'});break;}
   case 'psday':PS.day=+el.dataset.d;psSave();render();break;
+  case 'pspdf':psPdf();break;
   case 'pstab':PS.tab=el.dataset.t;psSave();render();break;
   case 'psthumb':psThumbModal(n);break;
   case 'psthumbdl':dlCanvas($('#tcm'),`KNPL7_Practice_Match_${n}.png`);break;
