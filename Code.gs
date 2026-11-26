@@ -17,12 +17,14 @@ function doPost(e){
     const b = JSON.parse(e.postData.contents), a = b.action;
     if(a==='getPublic') return out({ok:true, state:getPublicState_(), version:getVersion_()});
     if(a==='teamLogin') return out(teamLogin_(b));
+    if(a==='authInfo') return out({ok:true, codeRequired:!!P.getProperty('COMMITTEE_CODE')});
     if(a==='login') return out(login_(b));
     if(a==='logDownload'){ const r=b.rec||{}; sheet('Downloads',['When','Name','Mobile','Match']).appendRow([new Date(r.t||Date.now()), r.name, "'"+r.mobile, r.match]); return out({ok:true}); }
     // everything below needs a committee token
     if(!validToken_(b.token)) return out({ok:false,error:'Please login again'});
     if(a==='getState') return out({ok:true, state:getState_(), version:getVersion_()});
     if(a==='saveState') return out(saveState_(b.state, b.version));
+    if(a==='setCode') return out(setCode_(b));
     if(a==='sponsors') return out({ok:true, roles:sponsors_()});
     if(a==='fetchCH') return out(fetchCH_(b.url));
     return out({ok:false,error:'Unknown action'});
@@ -33,11 +35,20 @@ function doPost(e){
 function login_(b){
   const code = P.getProperty('COMMITTEE_CODE'), allowed = (P.getProperty('COMMITTEE_MOBILES')||'').split(',').map(s=>s.trim()).filter(Boolean);
   const mob = String(b.mobile||'').replace(/\D/g,'').slice(-10);
-  if(!code || b.code!==code) return {ok:false,error:'Wrong access code'};
+  if(code && b.code!==code) return {ok:false,error:'Wrong access code'};   // no code set yet = open to anyone with the link
   if(allowed.length && allowed.indexOf(mob)<0) return {ok:false,error:'This mobile is not in the committee list'};
   const tok = Utilities.getUuid(); const c = CacheService.getScriptCache(); c.put('t_'+tok, mob, 21600);
   sheet('Log',['When','Who','Mobile']).appendRow([new Date(), b.name, "'"+mob]);
   return {ok:true, token:tok};
+}
+/* Committee can create / change / remove the access code from Settings. Empty value = open again. */
+function setCode_(b){
+  const code = String(b.newCode||'').trim();
+  if(code && code.length<6) return {ok:false,error:'Use at least 6 characters'};
+  if(code) P.setProperty('COMMITTEE_CODE', code); else P.deleteProperty('COMMITTEE_CODE');
+  const mobs = String(b.mobiles||'').replace(/[^0-9,]/g,'');
+  if(mobs) P.setProperty('COMMITTEE_MOBILES', mobs); else P.deleteProperty('COMMITTEE_MOBILES');
+  return {ok:true, codeRequired:!!code};
 }
 function validToken_(t){ return !!t && !!CacheService.getScriptCache().get('t_'+t); }
 

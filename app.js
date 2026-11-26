@@ -3,7 +3,8 @@
 const KE=window.KE,KT=window.KT,CFG=window.KNPL_CONFIG||{};
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let S=null,view='draw',day=1,session=null,busy=false;
+let S=null,view='draw',day=1,session=null,busy=false,AUTH={codeRequired:false};
+const demoCode=()=>{try{return localStorage.getItem('knpl7_democode')||CFG.DEMO_COMMITTEE_CODE||'';}catch(e){return CFG.DEMO_COMMITTEE_CODE||'';}};
 const LS='knpl7_state',LSS='knpl7_session';
 const route=()=>location.hash.startsWith('#/yt')?'yt':location.hash.startsWith('#/team')?'team':location.hash.startsWith('#/sim')?'sim':'admin';
 
@@ -54,8 +55,8 @@ async function render(){
   if(view==='draw')setTimeout(drawWheel,0);
   if(view==='thumbs')setTimeout(()=>previewSel(),0);
 }
-function loginView(){return `<div class="card login"><h2>Committee login</h2><p class="muted small">${CFG.API_URL?'Enter your name, mobile and the committee access code.':'Demo mode (no server linked). Use the demo code from config.js.'}</p>
-<div class="field"><label>Name</label><input id="ln" autocomplete="name"></div><div class="field"><label>Mobile</label><input id="lm" inputmode="tel" autocomplete="tel"></div><div class="field"><label>Access code</label><input id="lc" type="password" autocomplete="current-password"></div>
+function loginView(){const need=CFG.API_URL?AUTH.codeRequired:!!demoCode();return `<div class="card login"><h2>Committee login</h2><p class="muted small">${need?'Enter your name, mobile and the committee access code.':'Enter your name and mobile to continue.'}${CFG.API_URL?'':' (Demo mode: no server linked.)'}</p>
+<div class="field"><label>Name</label><input id="ln" autocomplete="name"></div><div class="field"><label>Mobile</label><input id="lm" inputmode="tel" autocomplete="tel"></div>${need?'<div class="field"><label>Access code</label><input id="lc" type="password" autocomplete="current-password"></div>':''}
 <button class="btn gold" style="width:100%" data-act="login">Login</button></div>`;}
 
 /* ---------- DRAW ---------- */
@@ -217,6 +218,9 @@ function setView(){const s=S.settings;
   <div class="field"><label>Minutes per match: Days 1, 2, 4</label><input id="s_mm" value="${s.matchMinsDay[1]}"></div><div class="field"><label>Minutes per match: Day 3</label><input id="s_m3" value="${s.matchMinsDay[3]}"></div><div class="field"><label>Max ground changes (whole tournament)</label><input id="s_mc" value="${s.maxChanges}"></div><div class="field"><label>Gap between rounds (min)</label><input id="s_gap" value="${s.gapMins}"></div>
   <div class="field"><label>Ground-change buffer (min)</label><input id="s_tr" value="${s.travelMins}"></div><div class="field"><label>Break before Final (min)</label><input id="s_fb" value="${s.finalBreakMins}"></div></div>
   <p class="muted small">Changing times affects only rounds generated afterwards.</p><div class="row"><button class="btn gold" data-act="saveset">Save settings</button><button class="btn red" data-act="wipe">Reset everything</button></div></div>
+  <div class="card"><h2>Access code</h2><p class="muted small">${(CFG.API_URL?AUTH.codeRequired:!!demoCode())?'Committee login is PROTECTED by an access code.':'Committee tools are currently OPEN: anyone with the page link can log in with a name and mobile. Create a code when the tournament nears and share it only with authorised people.'}</p>
+  <div class="grid2"><div class="field"><label>New access code (min 6 characters; leave empty to open again)</label><input id="ac_new" type="password" autocomplete="new-password"></div><div class="field"><label>Allowed mobile numbers (optional, comma separated)</label><input id="ac_mob" placeholder="9876543210,9123456780"></div></div>
+  <button class="btn gold" data-act="setcode">Save access code</button></div>
   <div class="card"><h2>Backend</h2><p class="muted small">${CFG.API_URL?'Linked to Apps Script: shared data across committee devices.':'Not linked: data stays in this browser only. Set API_URL in config.js after deploying Code.gs (see README).'}</p></div>`;}
 /* ---------- YOUTUBE ---------- */
 let yt={name:'',mobile:'',ground:null,match:null,ok:false};
@@ -359,10 +363,10 @@ document.addEventListener('click',async e=>{
   case 'mclose':if(e.target===el||el.tagName==='BUTTON')closeModal();break;
   case 'view':view=el.dataset.v;render();break;
   case 'day':day=+el.dataset.d;render();break;
-  case 'login':{const name=$('#ln').value.trim(),mobile=$('#lm').value.trim(),code=$('#lc').value;
+  case 'login':{const name=$('#ln').value.trim(),mobile=$('#lm').value.trim(),code=$('#lc')?$('#lc').value:'';
     if(!name||!/^\d{10}$/.test(mobile.replace(/\D/g,'').slice(-10)))return toast('Enter your name and a 10-digit mobile',1);
     if(CFG.API_URL){const j=await api('login',{name,mobile,code});session={name,mobile,token:j.token};await load();}
-    else{if(code!==CFG.DEMO_COMMITTEE_CODE)return toast('Wrong code',1);session={name,mobile,token:'demo'};}
+    else{if(demoCode()&&code!==demoCode())return toast('Wrong code',1);session={name,mobile,token:'demo'};}
     sessionStorage.setItem(LSS,JSON.stringify(session));render();break;}
   case 'logout':session=null;sessionStorage.removeItem(LSS);render();break;
   case 'spin':
@@ -393,6 +397,10 @@ document.addEventListener('click',async e=>{
   case 'dlsched':download('KNPL7_schedule.csv',csv([['Match','Date','Start','End','Ground','Stage','Team A','Team B','Status','Winner']].concat(S.matches.slice().sort((a,b)=>a.no-b.no).map(m=>[m.no,S.settings.dates[m.day],KE.clock(S,m.start),KE.clock(S,m.end),gname(m.ground),KE.matchLabel(S,m),KE.tname(S,m.a),KE.tname(S,m.b),m.status,m.result?KE.tname(S,m.result.winner):'']))));break;
   case 'dlpoints':download('KNPL7_points.csv',csv([['Group','Pos','Team','P','W','L','Pts','NRR']].concat(['A','B'].flatMap(g=>KE.standings(S,g).map(r=>[g,r.pos,KE.tname(S,r.id),r.p,r.w,r.l,r.pts,r.nrr.toFixed(3)])))));break;
   case 'saveset':{const s=S.settings,v=id=>$('#'+id).value.trim();s.chUrl=v('s_ch');s.overs=+v('s_ov')||10;s.startTime=v('s_st');s.lastLight=v('s_ll');s.matchMinsDay={1:+v('s_mm')||85,2:+v('s_mm')||85,3:+v('s_m3')||80,4:+v('s_mm')||85};s.matchMins=s.matchMinsDay[1];s.maxChanges=+v('s_mc')||5;s.gapMins=+v('s_gap')||0;s.travelMins=+v('s_tr')||0;s.finalBreakMins=+v('s_fb')||0;save();toast('Saved');break;}
+  case 'setcode':{const nc=$('#ac_new').value.trim(),mb=$('#ac_mob').value.trim();if(nc&&nc.length<6)return toast('Use at least 6 characters',1);
+    if(!confirm(nc?'Protect committee login with this code? Share it only with authorised people.':'Open committee login to anyone with the link?'))return;
+    if(CFG.API_URL){const j=await api('setCode',{newCode:nc,mobiles:mb});AUTH={codeRequired:!!j.codeRequired};}else{try{localStorage.setItem('knpl7_democode',nc);}catch(e){}}
+    toast(nc?'Access code saved':'Login is open again');render();break;}
   case 'wipe':if(confirm('Erase the draw, fixtures and results?')&&prompt('Type RESET to confirm')==='RESET'){const keep={t:S.teams,sr:S.sponsorRoles,se:S.settings};S=KE.newState();S.teams=keep.t;S.sponsorRoles=keep.sr;S.settings=keep.se;save();render();}break;
 
   case 'chorder':{const g=el.dataset.g,names=$('#cho'+g).value.split(/\n/).map(x=>x.trim()).filter(Boolean),ids=names.map(nameToId);if(ids.length!==8||ids.some(x=>!x||!S.groups[g].includes(x)))return toast('Enter all 8 Group '+g+' teams by exact name',1);S.chOrder=S.chOrder||{};S.chOrder[g]={order:ids,done:KE.doneCount(S,g)};save();render();break;}
@@ -442,6 +450,7 @@ document.addEventListener('change',async e=>{
 window.addEventListener('hashchange',render);
 (async function init(){
   try{session=JSON.parse(sessionStorage.getItem(LSS));}catch(e){}
+  if(CFG.API_URL){try{AUTH=await api('authInfo');}catch(e){}}
   await load();render();
   window.__KNPL={get S(){return S;},render};
 })();
