@@ -3,6 +3,8 @@
 const KE=window.KE,KT=window.KT,CFG=window.KNPL_CONFIG||{};
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let LANG=(function(){try{return localStorage.getItem('knpl7_lang')||'en';}catch(e){return 'en';}})();
+const x=(en,ml)=>esc(LANG==='ml'&&ml?ml:en);
 let S=null,view='draw',day=1,session=null,busy=false,AUTH={codeRequired:false};
 const demoCode=()=>{try{return localStorage.getItem('knpl7_democode')||CFG.DEMO_COMMITTEE_CODE||'';}catch(e){return CFG.DEMO_COMMITTEE_CODE||'';}};
 const LS='knpl7_state',LSS='knpl7_session';
@@ -45,8 +47,9 @@ function shell(){
     who.innerHTML=`${esc(session.name||'Committee')} <button class="btn sm gold" data-act="logout">Logout</button>`;
   } else if(r==='yt'){tabs.innerHTML='';who.innerHTML='YouTube team';}
   else {const T=[['#/','Home','home'],['#/learn','How it works','learn'],['#/sim','Try the simulation','sim'],['#/team','My team','team']];
-    tabs.innerHTML=T.map(t=>`<a class="tab${r===t[2]?' on':''}" href="${t[0]}" style="text-decoration:none">${t[1]}</a>`).join('');who.innerHTML='';}
+    tabs.innerHTML=T.map(t=>`<a class="tab${r===t[2]?' on':''}" href="${t[0]}" style="text-decoration:none">${t[1]}</a>`).join('');who.innerHTML=langSwitch();}
 }
+function langSwitch(){return `<span class="row" style="gap:4px;flex-wrap:nowrap"><button class="btn sm ${LANG==='en'?'gold':'ghost'}" style="${LANG==='en'?'':'color:#e6d6b4;border-color:#e6d6b4'}" data-act="lang" data-l="en">English</button><button class="btn sm ${LANG==='ml'?'gold':'ghost'}" style="${LANG==='ml'?'':'color:#e6d6b4;border-color:#e6d6b4'}" data-act="lang" data-l="ml">മലയാളം</button></span>`;}
 async function render(){
   shell();const r=route(),m=$('#main');
   if(r==='home'){m.innerHTML=homeView();return;}
@@ -243,12 +246,12 @@ function ytView(){
 let tp={team:null};
 function teamView(){
   let h='<div class="pub">';
-  if(!tp.team)h+=`<div class="card"><h2>Franchise owner page</h2><div class="field"><label>Team</label><select id="tt"><option value="">Select…</option>${S.teams.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></div><div class="field"><label>Owner code</label><input id="tc2" type="password"></div><button class="btn gold" data-act="teamgo">View</button></div>`;
+  if(!tp.team)h+=`<div class="card"><h2>Franchise owner page</h2><p class="muted small">${x('Choose your team and enter your owner code to see your matches, grounds, timings and results.','നിങ്ങളുടെ ടീം തിരഞ്ഞെടുത്ത് ഉടമയുടെ കോഡ് നൽകിയാൽ മത്സരങ്ങൾ, ഗ്രൗണ്ട്, സമയം, ഫലങ്ങൾ എന്നിവ കാണാം.')}</p><div class="field"><label>Team</label><select id="tt"><option value="">Select…</option>${S.teams.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></div><div class="field"><label>Owner code</label><input id="tc2" type="password"></div><button class="btn gold" data-act="teamgo">View</button></div>`;
   else{
     const id=tp.team,ms=S.matches.filter(m=>m.a===id||m.b===id).sort((a,b)=>a.day-b.day||a.start-b.start),g=S.groups.A.includes(id)?'A':'B';
     const row=S.draw.groupsDone?KE.standings(S,g).find(r=>r.id===id):null;
     h+=`<div class="card"><h2>${crest(id,1)} ${esc(KE.tname(S,id))}</h2><p class="muted small">${S.draw.groupsDone?'Group '+g:'Group not drawn yet'}${row?` · Position ${row.pos} · ${row.pts} pts · NRR ${row.nrr.toFixed(3)}`:''}</p><button class="btn ghost sm" data-act="teamout">Switch team</button></div>
-    <div class="card"><h2>Matches</h2>${ms.length?ms.map(m=>{const opp=m.a===id?m.b:m.a;return `<div class="mrow" style="cursor:default"><div style="flex:1"><b>Match ${m.no}</b> · v ${esc(KE.tname(S,opp))}<div class="small muted">${KE.fmtDate(S,m.day).slice(0,11)} · ${KE.clock12(S,m.start)} · ${esc(gname(m.ground))}</div>${m.result?`<div class="small"><b>${m.result.winner===id?'Won':'Lost'}</b>${m.result.ra!==''&&m.result.ra!=null?` · ${esc(m.result.ra)}/${esc(m.result.oa||'')} v ${esc(m.result.rb)}/${esc(m.result.ob||'')}`:''}</div>`:''}</div><span class="chip ${m.status}">${m.status==='done'?'Result':'Scheduled'}</span></div>`;}).join(''):'<p class="muted">Your schedule appears here once Round 1 is generated.</p>'}</div>`;
+    <div class="card"><h2>Matches</h2>${ms.length?ms.map(m=>{const opp=m.a===id?m.b:m.a;return `<div class="mrow" style="cursor:default"><div style="flex:1"><b>Match ${m.no}</b> · v ${esc(KE.tname(S,opp))}<div class="small muted">${KE.fmtDate(S,m.day).slice(0,11)} · ${KE.clock12(S,m.start)} · ${esc(gname(m.ground))}</div>${m.result?`<div class="small"><b>${m.result.winner===id?'Won':'Lost'}</b>${m.result.ra!==''&&m.result.ra!=null?` · ${esc(m.result.ra)}/${esc(m.result.oa||'')} v ${esc(m.result.rb)}/${esc(m.result.ob||'')}`:''}</div>`:''}</div><span class="chip ${m.status}">${m.status==='done'?'Result':'Scheduled'}</span></div>`;}).join(''):`<p class="muted">${x('Your schedule appears here once Round 1 is generated.','റൗണ്ട് 1 ഫിക്സ്ചർ വന്നാൽ നിങ്ങളുടെ മത്സരക്രമം ഇവിടെ കാണാം.')}</p>`}</div>`;
   }
   return h+'</div>';
 }
@@ -314,63 +317,62 @@ function psSave(){try{localStorage.setItem(PSKEY,JSON.stringify(Object.assign({}
 function psStageLabel(sd,kind){const base=sd.label.replace(' · both groups','');return `${kind==='fx'?'Generate':'Generate'} ${base} ${kind==='fx'?'Fixture':'Results'}`;}
 
 const STAGE_HELP={
- 'A-R1':'Round 1 pairs are drawn by lot. Win and you get 2 points. Everyone plays, so the ladder can start from Round 2.',
- 'A-R2':'The ladder begins. Teams are ranked by points (then net run rate). 1st plays 2nd, 3rd plays 4th, 5th plays 6th, 7th plays 8th.',
- 'A-R3':'Same ladder again on the updated table. If a pair has already met, the matches are shuffled inside the same half of the table.',
- 'B-R1':'Group B plays on Friday. Round 1 is drawn by lot, just like Group A.',
- 'B-R2':'The ladder for Group B: rank by points then net run rate, then 1v2, 3v4, 5v6, 7v8.',
- 'B-R3':'Group B Round 3: no repeat opponents if it can be avoided.',
- 'R4':'Saturday: both groups play Round 4 on the table so far. Top half meets top half, bottom half meets bottom half.',
- 'R5':'The last league round. The final table decides who qualifies. The 8th placed team plays on Sunday morning.',
- 'QF':'The top 4 of each group qualify. Quarter-finals cross the groups: A1 v B4, A2 v B3, B1 v A4, B2 v A3.',
- 'SF':'Semi-finals: winner of QF1 plays winner of QF4, winner of QF2 plays winner of QF3.',
- 'F':'The Grand Final is at FISAT after a 45 minute break. If a finalist is at the other ground, that is when it travels.'
+ 'A-R1':['Round 1 pairs are drawn by lot. Win and you get 2 points. Everyone plays, so the ladder can start from Round 2.','റൗണ്ട് 1 ജോടികൾ നറുക്കെടുപ്പിലൂടെയാണ്. ജയിച്ചാൽ 2 പോയിന്റ്. എല്ലാവരും കളിക്കുന്നതിനാൽ ലാഡർ റൗണ്ട് 2 മുതൽ തുടങ്ങും.'],
+ 'A-R2':['The ladder begins. Teams are ranked by points (then net run rate). 1st plays 2nd, 3rd plays 4th, 5th plays 6th, 7th plays 8th.','ലാഡർ തുടങ്ങുന്നു. ടീമുകളെ പോയിന്റ് (പിന്നെ നെറ്റ് റൺ റേറ്റ്) അനുസരിച്ച് റാങ്ക് ചെയ്യും. 1-ാം സ്ഥാനം 2-ാമനോടും, 3-ാം സ്ഥാനം 4-ാമനോടും, 5-ാം സ്ഥാനം 6-ാമനോടും, 7-ാം സ്ഥാനം 8-ാമനോടും കളിക്കും.'],
+ 'A-R3':['Same ladder again on the updated table. If a pair has already met, the matches are shuffled inside the same half of the table.','പുതുക്കിയ പട്ടിക അനുസരിച്ച് വീണ്ടും ലാഡർ. ഒരു ജോടി നേരത്തെ കളിച്ചിട്ടുണ്ടെങ്കിൽ, പട്ടികയുടെ അതേ പകുതിക്കുള്ളിൽ മത്സരങ്ങൾ മാറ്റിയിടും.'],
+ 'B-R1':['Group B plays on Friday. Round 1 is drawn by lot, just like Group A.','ഗ്രൂപ്പ് B വെള്ളിയാഴ്ച കളിക്കും. ഗ്രൂപ്പ് A പോലെ റൗണ്ട് 1 നറുക്കെടുപ്പിലൂടെയാണ്.'],
+ 'B-R2':['The ladder for Group B: rank by points then net run rate, then 1v2, 3v4, 5v6, 7v8.','ഗ്രൂപ്പ് B യുടെ ലാഡർ: പോയിന്റ്, പിന്നെ നെറ്റ് റൺ റേറ്റ് അനുസരിച്ച് റാങ്ക്; തുടർന്ന് 1-2, 3-4, 5-6, 7-8.'],
+ 'B-R3':['Group B Round 3: no repeat opponents if it can be avoided.','ഗ്രൂപ്പ് B റൗണ്ട് 3: സാധ്യമെങ്കിൽ എതിരാളികൾ ആവർത്തിക്കില്ല.'],
+ 'R4':['Saturday: both groups play Round 4 on the table so far. Top half meets top half, bottom half meets bottom half.','ശനിയാഴ്ച: ഇതുവരെയുള്ള പട്ടിക അനുസരിച്ച് രണ്ട് ഗ്രൂപ്പും റൗണ്ട് 4 കളിക്കും. മുകളിലെ പകുതി മുകളിലെ പകുതിയോടും, താഴത്തെ പകുതി താഴത്തെ പകുതിയോടും കളിക്കും.'],
+ 'R5':['The last league round. The final table decides who qualifies. The 8th placed team plays on Sunday morning.','ലീഗിലെ അവസാന റൗണ്ട്. അവസാന പട്ടിക ആരൊക്കെ യോഗ്യത നേടും എന്ന് തീരുമാനിക്കും. 8-ാം സ്ഥാനത്തുള്ള ടീം ഞായറാഴ്ച രാവിലെ കളിക്കും.'],
+ 'QF':['The top 4 of each group qualify. Quarter-finals cross the groups: A1 v B4, A2 v B3, B1 v A4, B2 v A3.','ഓരോ ഗ്രൂപ്പിലെയും മികച്ച 4 ടീമുകൾ യോഗ്യത നേടും. ക്വാർട്ടർ ഫൈനലിൽ ഗ്രൂപ്പുകൾ പരസ്പരം കളിക്കും: A1-B4, A2-B3, B1-A4, B2-A3.'],
+ 'SF':['Semi-finals: winner of QF1 plays winner of QF4, winner of QF2 plays winner of QF3.','സെമി ഫൈനൽ: QF1 വിജയി QF4 വിജയിയോടും, QF2 വിജയി QF3 വിജയിയോടും കളിക്കും.'],
+ 'F':['The Grand Final is at FISAT after a 45 minute break. If a finalist is at the other ground, that is when it travels.','45 മിനിറ്റ് ഇടവേളയ്ക്കു ശേഷം ഗ്രാൻഡ് ഫൈനൽ ഫിസാറ്റിൽ നടക്കും. ഫൈനലിസ്റ്റ് മറ്റേ ഗ്രൗണ്ടിലായിരുന്നെങ്കിൽ ആ സമയത്താണ് യാത്ര ചെയ്യേണ്ടത്.']
 };
 const baseName=sd=>sd.label.replace(' · both groups','');
 function psSteps(st){return [{id:'G',label:'Groups',done:st.draw.groupsDone}].concat(KE.STAGES.map(sd=>{const ms=st.matches.filter(m=>m.stage===sd.id);return {id:sd.id,label:sd.id==='F'?'Final':sd.id.replace('-R',' R').replace('R4','Round 4').replace('R5','Round 5').replace('QF','Quarter-finals').replace('SF','Semi-finals'),done:!!st.stages[sd.id]&&ms.every(m=>m.status==='done')};}));}
 function psNextStep(st){
-  if(!st.draw.groupsDone)return {label:'🎲 Generate groups',act:'psgroups',title:'Step 1: make the groups',help:'16 teams are drawn into Group A and Group B (8 each). Tap the button and watch the draw.'};
+  if(!st.draw.groupsDone)return {label:'🎲 Generate groups',act:'psgroups',title:'Step 1: Make the groups',help:x('16 teams are drawn into Group A and Group B (8 each). Tap the button and watch the draw.','16 ടീമുകളെ ഗ്രൂപ്പ് A, ഗ്രൂപ്പ് B (8 വീതം) എന്നിങ്ങനെ നറുക്കെടുക്കും. ബട്ടൺ അമർത്തി നറുക്കെടുപ്പ് കാണൂ.')};
   for(const sd of KE.STAGES){const gen=st.stages[sd.id],ms=st.matches.filter(m=>m.stage===sd.id);
-    if(!gen){const c=KE.canGenerate(st,sd.id);if(c.ok)return {label:'Generate '+baseName(sd)+' fixture',act:'psgen',s:sd.id,title:baseName(sd),help:STAGE_HELP[sd.id]};return null;}
-    if(ms.some(m=>m.status!=='done'))return {label:'▶ Play '+baseName(sd)+' (random results)',act:'psres',s:sd.id,title:baseName(sd)+': fixture ready',help:'Fixture is ready. Tap to play it with random results, or pick the winner of each match yourself below to see what changes.'};}
+    if(!gen){const c=KE.canGenerate(st,sd.id);if(c.ok)return {label:'Generate '+baseName(sd)+' fixture',act:'psgen',s:sd.id,title:baseName(sd),help:x(...STAGE_HELP[sd.id])};return null;}
+    if(ms.some(m=>m.status!=='done'))return {label:'▶ Play '+baseName(sd)+' (random results)',act:'psres',s:sd.id,title:baseName(sd)+': fixture ready',help:x('Fixture is ready. Tap to play it with random results, or pick the winner of each match yourself below to see what changes.','ഫിക്സ്ചർ തയ്യാർ. ക്രമരഹിത ഫലങ്ങളോടെ കളിക്കാൻ അമർത്തൂ, അല്ലെങ്കിൽ താഴെ ഓരോ മത്സരത്തിന്റെയും വിജയിയെ സ്വയം തിരഞ്ഞെടുത്ത് എന്ത് മാറുന്നു എന്ന് കാണൂ.')};}
   return null;
 }
 function psWhy(st){
   const id=st.lastGen;if(!id||!st.stages[id])return '';const sd=KE.STAGES.find(s=>s.id===id),snap=(st.snap||{})[id],ms=st.matches.filter(m=>m.stage===id);
-  let h=`<div class="card"><h2>Why these matches? <span class="chip created">${esc(baseName(sd))}</span></h2><p class="muted small">${esc(STAGE_HELP[id]||'')}</p>`;
-  if(snap){['A','B'].forEach(g=>{if(!snap[g])return;h+=`<h3>Group ${g} table before this round</h3><div class="scroll"><table class="tbl"><tr><th>#</th><th>Team</th><th class="num">Pts</th><th>Plays</th></tr>${snap[g].map(r=>{const m=ms.find(x=>x.a===r.id||x.b===r.id),opp=m?(m.a===r.id?m.b:m.a):null,op=opp?snap[g].find(z=>z.id===opp):null;return `<tr class="${r.pos<=4?'':''}"><td>${r.pos}</td><td>${esc(KE.tname(st,r.id))}</td><td class="num">${r.pts}</td><td>${opp?esc(KE.tname(st,opp))+(op?` <span class="muted small">(${op.pos}${['st','nd','rd'][op.pos-1]||'th'})</span>`:''):'—'}</td></tr>`;}).join('')}</table></div>`;});}
-  else if(sd.round===1)h+='<p class="small">Round 1 pairs come from the lot, so there is no table yet.</p>';
+  let h=`<div class="card"><h2>Why these matches? <span class="chip created">${esc(baseName(sd))}</span></h2><p class="muted small">${x(...STAGE_HELP[id])}</p>`;
+  if(snap&&Object.keys(snap).length){['A','B'].forEach(g=>{if(!snap[g])return;h+=`<h3>Group ${g} table before this round</h3><div class="scroll"><table class="tbl"><tr><th>#</th><th>Team</th><th class="num">Pts</th><th>Plays</th></tr>${snap[g].map(r=>{const m=ms.find(q=>q.a===r.id||q.b===r.id),opp=m?(m.a===r.id?m.b:m.a):null,op=opp?snap[g].find(z=>z.id===opp):null;return `<tr><td>${r.pos}</td><td>${esc(KE.tname(st,r.id))}</td><td class="num">${r.pts}</td><td>${opp?esc(KE.tname(st,opp))+(op?` <span class="muted small">(${op.pos}${['st','nd','rd'][op.pos-1]||'th'})</span>`:''):'—'}</td></tr>`;}).join('')}</table></div>`;});}
+  else if(sd.round===1)h+=`<p class="small">${x('Round 1 pairs come from the lot, so there is no table yet.','റൗണ്ട് 1 ജോടികൾ നറുക്കെടുപ്പിലൂടെയാണ്, അതിനാൽ ഇതുവരെ പട്ടിക ഇല്ല.')}</p>`;
   (st.notes[id]||[]).forEach(n=>h+=`<div class="note">ℹ ${esc(n)}</div>`);
   return h+'</div>';
 }
 function psJourney(st){
   if(!st.my)return '';const ms=st.matches.filter(m=>m.a===st.my||m.b===st.my).sort((p,q)=>p.day-q.day||p.start-q.start);
-  return `<div class="card"><h2>${crest(st.my)} ${esc(KE.tname(st,st.my))}: my journey</h2>${ms.length?ms.map(m=>{const opp=m.a===st.my?m.b:m.a,tv=(m.travel||[]).some(t=>t.team===st.my);return `<div class="mrow" style="cursor:default"><div style="flex:1"><b>${esc(KE.matchLabel(st,m))}</b> v ${esc(KE.tname(st,opp))}<div class="small muted">${KE.fmtDate(st,m.day).slice(0,11)} · ${KE.clock12(st,m.start)} · ${esc(st.settings.grounds[m.ground])}${tv?' · <span class="trav">✈ travel</span>':''}</div></div>${m.result?`<span class="chip ${m.result.winner===st.my?'done':'planned'}">${m.result.winner===st.my?'Won':'Lost'}</span>`:'<span class="chip created">Upcoming</span>'}</div>`;}).join(''):'<p class="muted">Your matches will appear as rounds are generated.</p>'}</div>`;
+  return `<div class="card"><h2>${crest(st.my)} ${esc(KE.tname(st,st.my))}: My journey</h2>${ms.length?ms.map(m=>{const opp=m.a===st.my?m.b:m.a,tv=(m.travel||[]).some(t=>t.team===st.my);return `<div class="mrow" style="cursor:default"><div style="flex:1"><b>${esc(KE.matchLabel(st,m))}</b> v ${esc(KE.tname(st,opp))}<div class="small muted">${KE.fmtDate(st,m.day).slice(0,11)} · ${KE.clock12(st,m.start)} · ${esc(st.settings.grounds[m.ground])}${tv?' · <span class="trav">✈ travel</span>':''}</div></div>${m.result?`<span class="chip ${m.result.winner===st.my?'done':'planned'}">${m.result.winner===st.my?'Won':'Lost'}</span>`:'<span class="chip created">Upcoming</span>'}</div>`;}).join(''):`<p class="muted">${x('Your matches will appear as rounds are generated.','റൗണ്ടുകൾ ഉണ്ടാക്കുന്നതിനനുസരിച്ച് നിങ്ങളുടെ മത്സരങ്ങൾ ഇവിടെ കാണാം.')}</p>`}</div>`;
 }
 function psView(){
   if(!PS||PS.sigf!==frozenSig())psLoad();
   const st=PS,nx=psNextStep(st);let h='<div class="pub" style="max-width:980px">';
-  h+=`<div class="card"><h2>Try the Dynamic Ladder <span class="chip ready">Practice only</span></h2><p class="muted small">Play the whole tournament in a few taps. Nothing here affects the real tournament and other people cannot see your simulation.</p>
+  h+=`<div class="card"><h2>Try the Dynamic Ladder <span class="chip ready">Practice only</span></h2><p class="muted small">${x('Play the whole tournament in a few taps. Nothing here affects the real tournament and other people cannot see your simulation.','ഏതാനും ടാപ്പുകൾ കൊണ്ട് ടൂർണമെന്റ് മുഴുവൻ കളിക്കാം. ഇവിടെ ചെയ്യുന്നതൊന്നും യഥാർത്ഥ ടൂർണമെന്റിനെ ബാധിക്കില്ല; മറ്റുള്ളവർക്ക് നിങ്ങളുടെ സിമുലേഷൻ കാണാനും കഴിയില്ല.')}</p>
   <div class="row"><div style="flex:1;min-width:200px"><label>Follow a team (optional)</label><select id="psmy" data-act="psmy"><option value="">None</option>${S.teams.map(t=>`<option value="${t.id}" ${st.my===t.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select></div><button class="btn red sm" style="margin-top:16px" data-act="psreset">Reset</button></div>
-  <div class="banner ${S.frozen?'ok':''}" style="margin:10px 0 0">${S.frozen?'Groups are the official frozen draw.':'Official groups are not frozen yet, so you make your own.'}</div></div>`;
+  <div class="banner ${S.frozen?'ok':''}" style="margin:10px 0 0">${S.frozen?x('Groups are the official frozen draw.','ഗ്രൂപ്പുകൾ ഔദ്യോഗിക നറുക്കെടുപ്പിലേതാണ്.'):x('Official groups are not frozen yet, so you make your own.','ഔദ്യോഗിക ഗ്രൂപ്പുകൾ ഇതുവരെ ഉറപ്പിച്ചിട്ടില്ല, അതിനാൽ സ്വന്തമായി ഉണ്ടാക്കൂ.')}</div></div>`;
   h+=`<div class="prog">${psSteps(st).map((s,i,arr)=>{const cur=!s.done&&(i===0||arr[i-1].done);return `<span class="${s.done?'done':cur?'cur':''}">${s.done?'✓ ':''}${esc(s.label)}</span>`;}).join('')}</div>`;
   const fin=st.matches.find(m=>m.kind==='Final'&&m.status==='done');
   if(fin)h+=`<div class="champ">🏆 Champions: ${esc(KE.tname(st,fin.result.winner))}</div>`;
-  if(nx&&st.draw.groupsDone||(!st.draw.groupsDone))h+=nx?`<div class="card coach"><h2>${esc(nx.title)}</h2><p>${esc(nx.help)}</p></div>`:'';
-  else if(!fin)h+='';
+  if(nx)h+=`<div class="card coach"><h2>${esc(nx.title)}</h2><p>${nx.help}</p></div>`;
   if(!st.draw.groupsDone){h+=`<div class="fabbar"><button class="btn gold" data-act="psgroups">🎲 Generate groups</button></div></div>`;return h;}
-  h+=`<div class="card"><h2>Groups</h2><div class="picks"><div><h3>Group A · plays 11, 13, 14 Feb</h3><ol>${slots(st.groups.A,8)}</ol></div><div><h3>Group B · plays 12, 13, 14 Feb</h3><ol>${slots(st.groups.B,8)}</ol></div></div>${S.frozen?'':'<button class="btn ghost sm" data-act="psgroups">Draw again</button>'}</div>`;
+  h+=`<div class="card"><h2>Groups</h2><div class="picks"><div><h3>Group A · 11, 13, 14 Feb</h3><ol>${slots(st.groups.A,8)}</ol></div><div><h3>Group B · 12, 13, 14 Feb</h3><ol>${slots(st.groups.B,8)}</ol></div></div>${S.frozen?'':'<button class="btn ghost sm" data-act="psgroups">Draw again</button>'}</div>`;
   h+=psWhy(st);
   h+=`<div class="daytabs">${[1,2,3,4].map(d=>`<button class="dt${psDay===d?' on':''}" data-act="psday" data-d="${d}">Day ${d} · ${KE.fmtDate(st,d).slice(0,11)}</button>`).join('')}</div>`;
   const ms=st.matches.filter(m=>m.day===psDay);
-  if(!ms.length)h+='<div class="card muted">Nothing scheduled for this day yet. Use the big button below to move the tournament forward.</div>';
+  if(!ms.length)h+=`<div class="card muted">${x('Nothing scheduled for this day yet. Use the big button below to move the tournament forward.','ഈ ദിവസത്തേക്ക് ഇതുവരെ മത്സരങ്ങളില്ല. ടൂർണമെന്റ് മുന്നോട്ട് നീക്കാൻ താഴത്തെ വലിയ ബട്ടൺ അമർത്തൂ.')}</div>`;
   else{
     const starts=[...new Set(ms.map(m=>m.start))].sort((p,q)=>p-q);
-    h+=`<div class="row small muted" style="margin-bottom:8px"><span class="gtag">${esc(gname(0))}</span><span class="gtag g1">${esc(gname(1))}</span><span class="tvb">✈ TRAVEL</span><span>= team that has to change ground</span></div>`;
-    starts.forEach(s=>{h+=`<div class="slot"><div class="tm">${KE.clock12(st,s)}<small>to ${KE.clock12(st,s+KE.dur(st,psDay))}</small></div>${[0,1].map(g=>{const m=ms.find(x=>x.start===s&&x.ground===g);return m?mcard(m,st,psActions(m)):'<div class="muted small" style="padding:10px">—</div>';}).join('')}</div>`;});
+    h+=`<div class="row small muted" style="margin-bottom:8px"><span class="gtag">${esc(gname(0))}</span><span class="gtag g1">${esc(gname(1))}</span><span class="tvb">✈ TRAVEL</span><span>${x('= team that has to change ground','= ഗ്രൗണ്ട് മാറേണ്ട ടീം')}</span></div>`;
+    starts.forEach(s=>{h+=`<div class="slot"><div class="tm">${KE.clock12(st,s)}<small>to ${KE.clock12(st,s+KE.dur(st,psDay))}</small></div>${[0,1].map(g=>{const m=ms.find(q=>q.start===s&&q.ground===g);return m?mcard(m,st,psActions(m)):'<div class="muted small" style="padding:10px">—</div>';}).join('')}</div>`;});
   }
   h+=psJourney(st);
-  h+=['A','B'].map(g=>{const rows=KE.standings(st,g);return `<div class="card"><h2>Group ${g} points table</h2><div class="scroll"><table class="tbl"><tr><th>#</th><th>Team</th><th class="num">P</th><th class="num">W</th><th class="num">Pts</th><th class="num">NRR</th></tr>${rows.map(r=>`<tr class="${r.pos<=4?'q':''}"><td>${r.pos}</td><td><span class="row" style="flex-wrap:nowrap;gap:6px">${crest(r.id)}${esc(KE.tname(st,r.id))}</span></td><td class="num">${r.p}</td><td class="num">${r.w}</td><td class="num"><b>${r.pts}</b></td><td class="num">${r.nrr>=0?'+':''}${r.nrr.toFixed(3)}</td></tr>`).join('')}</table></div><p class="muted small">Green rows are the top 4: they qualify for the quarter-finals.</p></div>`;}).join('');
+  h+=['A','B'].map(g=>{const rows=KE.standings(st,g);return `<div class="card"><h2>Group ${g} points table</h2><div class="scroll"><table class="tbl"><tr><th>#</th><th>Team</th><th class="num">P</th><th class="num">W</th><th class="num">Pts</th><th class="num">NRR</th></tr>${rows.map(r=>`<tr class="${r.pos<=4?'q':''}"><td>${r.pos}</td><td><span class="row" style="flex-wrap:nowrap;gap:6px">${crest(r.id)}${esc(KE.tname(st,r.id))}</span></td><td class="num">${r.p}</td><td class="num">${r.w}</td><td class="num"><b>${r.pts}</b></td><td class="num">${r.nrr>=0?'+':''}${r.nrr.toFixed(3)}</td></tr>`).join('')}</table></div><p class="muted small">${x('Green rows are the top 4: they qualify for the quarter-finals.','പച്ച വരികളിലെ മികച്ച 4 ടീമുകൾ ക്വാർട്ടർ ഫൈനലിൽ യോഗ്യത നേടും.')}</p></div>`;}).join('');
   h+=`<details class="more"><summary>All rounds (manual control)</summary><div style="margin-top:10px">${KE.STAGES.map(sd=>{const gen=st.stages[sd.id],c=KE.canGenerate(st,sd.id),ms2=st.matches.filter(m=>m.stage===sd.id),done=ms2.filter(m=>m.status==='done').length;return `<div class="stage"><div class="t">${esc(sd.label)}<small>${gen?done+'/'+ms2.length+' results':esc(c.reason||'')}</small></div><button class="btn ${gen?'ghost':'gold'} sm" data-act="psgen" data-s="${sd.id}" ${c.ok?'':'disabled'}>Generate ${esc(baseName(sd))} Fixture</button><button class="btn ${gen&&done<ms2.length?'gold':'ghost'} sm" data-act="psres" data-s="${sd.id}" ${gen&&done<ms2.length?'':'disabled'}>Generate ${esc(baseName(sd))} Results</button></div>`;}).join('')}</div></details>`;
   h+=`<details class="more"><summary>Ground changes (for organisers)</summary><div style="margin-top:10px">${groundCard(st)}</div></details>`;
   if(nx)h+=`<div class="fabbar"><button class="btn gold" data-act="${nx.act}" data-s="${nx.s||''}">${esc(nx.label)}</button></div>`;
@@ -378,30 +380,31 @@ function psView(){
   return h+'</div>';
 }
 function homeView(){
-  return `<div class="pub" style="max-width:980px"><div class="hero"><h1>KNPL-7 Dynamic Ladder</h1><p>Win and climb, lose and slide. Every match is against a team of similar strength.</p><p>Learn how the league works in two minutes, then play the whole tournament yourself.</p>
+  return `<div class="pub" style="max-width:980px"><div class="hero"><h1>KNPL-7 Dynamic Ladder</h1><p>${x('Win and climb, lose and slide. Every match is against a team of similar strength.','ജയിച്ചാൽ മുകളിലേക്ക്, തോറ്റാൽ താഴേക്ക്. ഓരോ മത്സരവും ഏതാണ്ട് സമാന കരുത്തുള്ള ടീമിനോടാണ്.')}</p><p>${x('Learn how the league works in two minutes, then play the whole tournament yourself.','രണ്ട് മിനിറ്റിൽ ലീഗ് എങ്ങനെ പ്രവർത്തിക്കുന്നു എന്ന് മനസ്സിലാക്കൂ, എന്നിട്ട് ടൂർണമെന്റ് മുഴുവൻ സ്വയം കളിച്ചു നോക്കൂ.')}</p>
   <div class="facts"><span>16 teams</span><span>2 groups of 8</span><span>5 ladder rounds</span><span>Top 4 qualify</span><span>11–14 Feb 2027 · Angamaly</span></div></div>
-  <div class="bigcards"><a class="bigcard" href="#/learn"><div class="n">1</div><h3>How it works</h3><p>A simple, picture-style guide to groups, rounds, the ladder and the knockouts.</p></a>
-  <a class="bigcard" href="#/sim"><div class="n">2</div><h3>Try the simulation</h3><p>Draw groups, play every round to the Final with one button, and follow your own team.</p></a>
-  <a class="bigcard" href="#/team"><div class="n">3</div><h3>Franchise owners</h3><p>See your own matches, grounds, timings and results once the real fixtures are out.</p></a></div>
-  <p class="muted small" style="text-align:center">Practice results are not real. <a href="#/admin" style="color:var(--mute)">Committee login</a></p></div>`;
+  <div class="bigcards"><a class="bigcard" href="#/learn"><div class="n">1</div><h3>How it works</h3><p>${x('A simple, picture-style guide to groups, rounds, the ladder and the knockouts.','ഗ്രൂപ്പുകൾ, റൗണ്ടുകൾ, ലാഡർ, നോക്കൗട്ട് എന്നിവയെക്കുറിച്ചുള്ള ലളിതമായ ചിത്ര ഗൈഡ്.')}</p></a>
+  <a class="bigcard" href="#/sim"><div class="n">2</div><h3>Try the simulation</h3><p>${x('Draw groups, play every round to the Final with one button, and follow your own team.','ഗ്രൂപ്പുകൾ നറുക്കെടുക്കൂ, ഒരു ബട്ടൺ കൊണ്ട് ഫൈനൽ വരെ എല്ലാ റൗണ്ടും കളിക്കൂ, നിങ്ങളുടെ സ്വന്തം ടീമിനെ പിന്തുടരൂ.')}</p></a>
+  <a class="bigcard" href="#/team"><div class="n">3</div><h3>Franchise owners</h3><p>${x('See your own matches, grounds, timings and results once the real fixtures are out.','യഥാർത്ഥ ഫിക്സ്ചർ വന്നാൽ നിങ്ങളുടെ മത്സരങ്ങൾ, ഗ്രൗണ്ട്, സമയം, ഫലങ്ങൾ എന്നിവ കാണാം.')}</p></a></div>
+  <p class="muted small" style="text-align:center">${x('Practice results are not real.','പരിശീലന ഫലങ്ങൾ യഥാർത്ഥമല്ല.')} <a href="#/admin" style="color:var(--mute)">Committee login</a></p></div>`;
 }
 function learnView(){
-  const rung=(n,t,low)=>`<div class="rung ${low?'low':''}"><b>${n}</b>${t}</div>`;
+  const ord=n=>['1st','2nd','3rd','4th','5th','6th','7th','8th'][n-1],mo=n=>n+'-ാം';
+  const rung=(n,o,low)=>`<div class="rung ${low?'low':''}"><b>${n}</b>${x('plays '+ord(o),'കളിക്കുന്നത്: '+mo(o)+' സ്ഥാനക്കാരോട്')}</div>`;
   return `<div class="pub" style="max-width:860px"><div class="crumbs"><a href="#/">Home</a><a href="#/sim">Try the simulation →</a></div>
-  <div class="sec"><h2><span class="n">★</span>The big picture</h2><p>16 teams, two groups, five rounds, then knockouts. Every team plays 5 league matches.</p>
+  <div class="sec"><h2><span class="n">★</span>The big picture</h2><p>${x('16 teams, two groups, five rounds, then knockouts. Every team plays 5 league matches.','16 ടീമുകൾ, രണ്ട് ഗ്രൂപ്പ്, അഞ്ച് റൗണ്ട്, അതിനു ശേഷം നോക്കൗട്ട്. ഓരോ ടീമും 5 ലീഗ് മത്സരങ്ങൾ കളിക്കും.')}</p>
   <div class="tl"><span class="st">Group draw</span><span class="ar">→</span><span class="st">5 ladder rounds</span><span class="ar">→</span><span class="st">Quarter-finals</span><span class="ar">→</span><span class="st">Semi-finals</span><span class="ar">→</span><span class="st">Grand Final</span></div></div>
-  <div class="sec"><h2><span class="n">1</span>Two groups</h2><p>Teams are drawn by lot into Group A and Group B, 8 teams each.</p><p><b>Group A</b> plays on Thu 11 Feb, Sat 13 Feb and Sun 14 Feb. <b>Group B</b> plays on Fri 12 Feb, Sat 13 Feb and Sun 14 Feb.</p></div>
-  <div class="sec"><h2><span class="n">2</span>Round 1: by lot</h2><p>The first round pairs are drawn by lot (this is the Rising Star Marque match). A win is worth <b>2 points</b>. Every match must have a winner; a tie goes to a Super Over.</p></div>
-  <div class="sec"><h2><span class="n">3</span>The ladder (Round 2 onwards)</h2><p>After every round the table is updated: points first, then net run rate. Then the ladder pairs teams <b>next to each other</b>:</p>
-  <div class="ladder">${rung(1,'plays 2nd')}${rung(2,'plays 1st')}${rung(3,'plays 4th')}${rung(4,'plays 3rd')}${rung(5,'plays 6th',1)}${rung(6,'plays 5th',1)}${rung(7,'plays 8th',1)}${rung(8,'plays 7th',1)}</div>
-  <p><b>Top half (1–4)</b> only plays the top half. <b>Bottom half (5–8)</b> only plays the bottom half. So you always meet a team that is doing about as well as you. Win and climb; lose and slide.</p></div>
-  <div class="sec"><h2><span class="n">4</span>No repeat opponents</h2><p>If the ladder pair has already met in this league, we shuffle <i>inside the same half</i>:</p>
-  <div class="pairbox"><div class="opt"><b>Standard</b><br>1 v 2 and 3 v 4</div><div class="opt"><b>Shuffle 1</b><br>1 v 3 and 2 v 4</div><div class="opt"><b>Shuffle 2</b><br>1 v 4 and 2 v 3</div><div class="opt no"><b>Still repeats?</b><br>Back to the original schedule (1 v 2, 3 v 4, 5 v 6, 7 v 8). A rematch is then allowed.</div></div>
-  <p class="small muted">The same rule applies to positions 5–8. Teams from the top half never play the bottom half.</p></div>
-  <div class="sec"><h2><span class="n">5</span>Knockouts</h2><p>The top 4 of each group qualify.</p>
-  <div class="pairbox"><div class="opt"><b>Quarter-finals</b><br>QF1: A1 v B4<br>QF2: A2 v B3<br>QF3: B1 v A4<br>QF4: B2 v A3</div><div class="opt"><b>Semi-finals</b><br>SF1: QF1 winner v QF4 winner<br>SF2: QF2 winner v QF3 winner</div></div>
-  <p>The <b>Grand Final</b> is at FISAT on Sunday 14 Feb.</p></div>
-  <div class="sec"><h2><span class="n">6</span>Two grounds</h2><p>Matches are played at FISAT and Boundary Grounds, which are not close. The fixture tries to keep every team at one ground. When a team must change ground, it shows a red <span class="tvb">✈ TRAVEL</span> tag and gets 30 minutes to move. All play ends by 6 PM.</p></div>
+  <div class="sec"><h2><span class="n">1</span>Two groups</h2><p>${x('Teams are drawn by lot into Group A and Group B, 8 teams each.','ടീമുകളെ നറുക്കെടുപ്പിലൂടെ ഗ്രൂപ്പ് A, ഗ്രൂപ്പ് B എന്നിങ്ങനെ 8 വീതം തിരിക്കും.')}</p><p>${x('Group A plays on Thu 11 Feb, Sat 13 Feb and Sun 14 Feb. Group B plays on Fri 12 Feb, Sat 13 Feb and Sun 14 Feb.','ഗ്രൂപ്പ് A ഫെബ്രുവരി 11 (വ്യാഴം), 13 (ശനി), 14 (ഞായർ) തീയതികളിൽ കളിക്കും. ഗ്രൂപ്പ് B ഫെബ്രുവരി 12 (വെള്ളി), 13 (ശനി), 14 (ഞായർ) തീയതികളിൽ കളിക്കും.')}</p></div>
+  <div class="sec"><h2><span class="n">2</span>Round 1: by lot</h2><p>${x('The first round pairs are drawn by lot (this is the Rising Star Marque match). A win is worth 2 points. Every match must have a winner; a tie goes to a Super Over.','ആദ്യ റൗണ്ടിലെ ജോടികൾ നറുക്കെടുപ്പിലൂടെ നിശ്ചയിക്കും (ഇതാണ് റൈസിംഗ് സ്റ്റാർ മാർക്വി മത്സരം). ജയത്തിന് 2 പോയിന്റ്. ഓരോ മത്സരത്തിനും ഒരു വിജയി വേണം; ടൈ ആയാൽ സൂപ്പർ ഓവർ.')}</p></div>
+  <div class="sec"><h2><span class="n">3</span>The ladder (Round 2 onwards)</h2><p>${x('After every round the table is updated: points first, then net run rate. Then the ladder pairs teams next to each other:','ഓരോ റൗണ്ടിനു ശേഷവും പട്ടിക പുതുക്കും: ആദ്യം പോയിന്റ്, പിന്നെ നെറ്റ് റൺ റേറ്റ്. തുടർന്ന് ലാഡർ അടുത്തടുത്തുള്ള ടീമുകളെ ജോടിയാക്കും:')}</p>
+  <div class="ladder">${rung(1,2)}${rung(2,1)}${rung(3,4)}${rung(4,3)}${rung(5,6,1)}${rung(6,5,1)}${rung(7,8,1)}${rung(8,7,1)}</div>
+  <p>${x('Top half (1–4) only plays the top half. Bottom half (5–8) only plays the bottom half. So you always meet a team that is doing about as well as you. Win and climb; lose and slide.','മുകളിലെ പകുതി (1–4) മുകളിലെ പകുതിയോട് മാത്രമേ കളിക്കൂ. താഴത്തെ പകുതി (5–8) താഴത്തെ പകുതിയോട് മാത്രം. അതിനാൽ നിങ്ങളോളം മികച്ച പ്രകടനമുള്ള ടീമിനെയാണ് എപ്പോഴും നേരിടുക. ജയിച്ചാൽ മുകളിലേക്ക്, തോറ്റാൽ താഴേക്ക്.')}</p></div>
+  <div class="sec"><h2><span class="n">4</span>No repeat opponents</h2><p>${x('If the ladder pair has already met in this league, we shuffle inside the same half:','ലാഡർ ജോടി ഇതിനകം ഈ ലീഗിൽ കളിച്ചിട്ടുണ്ടെങ്കിൽ, അതേ പകുതിക്കുള്ളിൽ തന്നെ മാറ്റിയിടും:')}</p>
+  <div class="pairbox"><div class="opt"><b>Standard</b><br>1 v 2 and 3 v 4</div><div class="opt"><b>Shuffle 1</b><br>1 v 3 and 2 v 4</div><div class="opt"><b>Shuffle 2</b><br>1 v 4 and 2 v 3</div><div class="opt no"><b>Still repeats?</b><br>${x('Back to the original schedule (1 v 2, 3 v 4, 5 v 6, 7 v 8). A rematch is then allowed.','ആദ്യത്തെ ക്രമത്തിലേക്ക് (1-2, 3-4, 5-6, 7-8) മടങ്ങും. അപ്പോൾ വീണ്ടും കളിക്കാൻ അനുവദിക്കും.')}</div></div>
+  <p class="small muted">${x('The same rule applies to positions 5–8. Teams from the top half never play the bottom half.','5–8 സ്ഥാനങ്ങൾക്കും ഇതേ നിയമം. മുകളിലെ പകുതിയിലെ ടീമുകൾ താഴത്തെ പകുതിയോട് ഒരിക്കലും കളിക്കില്ല.')}</p></div>
+  <div class="sec"><h2><span class="n">5</span>Knockouts</h2><p>${x('The top 4 of each group qualify.','ഓരോ ഗ്രൂപ്പിലെയും മികച്ച 4 ടീമുകൾ യോഗ്യത നേടും.')}</p>
+  <div class="pairbox"><div class="opt"><b>Quarter-finals</b><br>QF1: A1 v B4<br>QF2: A2 v B3<br>QF3: B1 v A4<br>QF4: B2 v A3</div><div class="opt"><b>Semi-finals</b><br>${x('SF1: QF1 winner v QF4 winner','SF1: QF1 വിജയി v QF4 വിജയി')}<br>${x('SF2: QF2 winner v QF3 winner','SF2: QF2 വിജയി v QF3 വിജയി')}</div></div>
+  <p>${x('The Grand Final is at FISAT on Sunday 14 Feb.','ഗ്രാൻഡ് ഫൈനൽ ഫെബ്രുവരി 14 ഞായറാഴ്ച ഫിസാറ്റിൽ (FISAT) നടക്കും.')}</p></div>
+  <div class="sec"><h2><span class="n">6</span>Two grounds</h2><p>${x('Matches are played at FISAT and Boundary Grounds, which are not close. The fixture tries to keep every team at one ground. When a team must change ground, it shows a red TRAVEL tag and gets 30 minutes to move. All play ends by 6 PM.','മത്സരങ്ങൾ ഫിസാറ്റ്, ബൗണ്ടറി ഗ്രൗണ്ട്സ് എന്നീ രണ്ട് ഗ്രൗണ്ടുകളിലാണ്; ഇവ തമ്മിൽ അകലമുണ്ട്. ഓരോ ടീമിനെയും കഴിയുന്നത്ര ഒരേ ഗ്രൗണ്ടിൽ നിർത്താൻ ഫിക്സ്ചർ ശ്രമിക്കും. ഒരു ടീമിന് ഗ്രൗണ്ട് മാറേണ്ടി വന്നാൽ ചുവന്ന TRAVEL ടാഗ് കാണിക്കും, മാറാൻ 30 മിനിറ്റ് ലഭിക്കും. എല്ലാ കളിയും വൈകിട്ട് 6 മണിക്ക് മുമ്പ് അവസാനിക്കും.')}</p></div>
   <div class="sec" style="text-align:center"><h2 style="justify-content:center">Ready?</h2><a class="btn gold" href="#/sim" style="text-decoration:none">Try the simulation</a></div></div>`;
 }
 function psActions(m){
@@ -473,6 +476,7 @@ document.addEventListener('click',async e=>{
 
   case 'chorder':{const g=el.dataset.g,names=$('#cho'+g).value.split(/\n/).map(x=>x.trim()).filter(Boolean),ids=names.map(nameToId);if(ids.length!==8||ids.some(x=>!x||!S.groups[g].includes(x)))return toast('Enter all 8 Group '+g+' teams by exact name',1);S.chOrder=S.chOrder||{};S.chOrder[g]={order:ids,done:KE.doneCount(S,g)};save();render();break;}
   case 'chclear':if(S.chOrder)delete S.chOrder[el.dataset.g];save();render();break;
+  case 'lang':LANG=el.dataset.l;try{localStorage.setItem('knpl7_lang',LANG);}catch(e){}render();break;
   case 'psreset':if(confirm('Reset your practice simulation?')){PS=psNew();psDay=1;psSave();render();}break;
   case 'psgroups':{const ids=shuffle(S.teams.map(t=>t.id));PS=psNew();PS.groups={A:ids.slice(0,8),B:ids.slice(8)};PS.draw.groupsDone=true;psLot(PS);psSave();render();break;}
   case 'psgen':{const id=el.dataset.s,sd=KE.STAGES.find(s=>s.id===id);PS.snap=PS.snap||{};PS.snap[id]={};if(sd.round!==1&&sd.round!=null||['R4','R5'].includes(id)){(sd.group?[sd.group]:['A','B']).forEach(g=>{PS.snap[id][g]=KE.standings(PS,g).map(r=>({id:r.id,pts:r.pts,pos:r.pos}));});}PS.lastGen=id;KE.generate(PS,id);psDay=PS.matches.find(m=>m.stage===id).day;psSave();render();break;}
