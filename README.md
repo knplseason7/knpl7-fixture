@@ -39,3 +39,7 @@ The 30 minute buffer is added only when a team actually travels (the next round 
 * When the CricHeroes tournament is live (by 10 Jan): add the link in Settings and click **Mark tournament started**. Results then come from **Fetch CricHeroes results** (manual entry stays as a fallback).
 * The practice simulation runs entirely in each visitor's browser and is saved only on their device, so any number of people can use it at the same time without affecting each other or the server.
 * Live committee data is protected against two people saving at once (version check + lock in Code.gs): the second save is refused and the page reloads the latest data. Owner codes are checked on the server and never sent to public pages.
+
+## Pages
+* `/` Home (share this link with everyone), `#/learn` How it works, `#/sim` practice simulation, `#/team` franchise owners, `#/yt` YouTube team.
+* Committee tools: `#/admin` (name and mobile only until an access code is created in Settings).

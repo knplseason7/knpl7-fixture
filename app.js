@@ -6,7 +6,7 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 let S=null,view='draw',day=1,session=null,busy=false,AUTH={codeRequired:false};
 const demoCode=()=>{try{return localStorage.getItem('knpl7_democode')||CFG.DEMO_COMMITTEE_CODE||'';}catch(e){return CFG.DEMO_COMMITTEE_CODE||'';}};
 const LS='knpl7_state',LSS='knpl7_session';
-const route=()=>location.hash.startsWith('#/yt')?'yt':location.hash.startsWith('#/team')?'team':location.hash.startsWith('#/sim')?'sim':'admin';
+const route=()=>{const h=location.hash;return h.startsWith('#/yt')?'yt':h.startsWith('#/team')?'team':h.startsWith('#/sim')?'sim':h.startsWith('#/learn')?'learn':h.startsWith('#/admin')?'admin':'home';};
 
 /* ---------- storage / api ---------- */
 async function api(action,payload){
@@ -43,10 +43,14 @@ function shell(){
     const T=[['draw','Draw'],['sched','Fixture'],['sim','Simulation lab'],['table','Points table'],['thumbs','Thumbnails'],['teams','Teams & sponsors'],['files','Downloads & links'],['set','Settings']];
     tabs.innerHTML=T.map(t=>`<button class="tab${view===t[0]?' on':''}" data-act="view" data-v="${t[0]}">${t[1]}</button>`).join('');
     who.innerHTML=`${esc(session.name||'Committee')} <button class="btn sm gold" data-act="logout">Logout</button>`;
-  } else {tabs.innerHTML='';who.innerHTML=r==='yt'?'YouTube team':r==='sim'?'Practice simulation':'Franchise owners';}
+  } else if(r==='yt'){tabs.innerHTML='';who.innerHTML='YouTube team';}
+  else {const T=[['#/','Home','home'],['#/learn','How it works','learn'],['#/sim','Try the simulation','sim'],['#/team','My team','team']];
+    tabs.innerHTML=T.map(t=>`<a class="tab${r===t[2]?' on':''}" href="${t[0]}" style="text-decoration:none">${t[1]}</a>`).join('');who.innerHTML='';}
 }
 async function render(){
   shell();const r=route(),m=$('#main');
+  if(r==='home'){m.innerHTML=homeView();return;}
+  if(r==='learn'){m.innerHTML=learnView();return;}
   if(r==='sim'){m.innerHTML=psView();return;}
   if(r==='yt')return m.innerHTML=ytView();
   if(r==='team')return m.innerHTML=teamView();
@@ -154,7 +158,7 @@ function mcard(m,st,act){
     act=(m.status==='planned'?`<button class="btn sm" data-act="created" data-n="${m.no}">Created in CricHeroes</button>`:'')+(m.status==='created'?`<button class="btn ghost sm" data-act="uncreate" data-n="${m.no}">Undo</button>`:'')+
     (S.started?`<button class="btn ${m.status==='done'?'ghost':'gold'} sm" data-act="result" data-n="${m.no}">${m.status==='done'?'Edit result':'Manual result'}</button>`:'')+(m.chUrl?`<a class="btn ghost sm" target="_blank" rel="noopener" href="${esc(m.chUrl)}">CricHeroes ↗</a>`:'');
   }
-  return `<div class="mc g${m.ground}${m.status==='done'?' done':''}${(m.travel||[]).length?' hastravel':''}"><div class="mc-top"><span class="no">Match ${m.no}</span><span class="gtag g${m.ground}">${esc(st.settings.grounds[m.ground])}</span><span class="chip ${m.status}">${m.status==='done'?'Result in':m.status==='created'?'In CricHeroes':'Planned'}</span></div>
+  return `<div class="mc g${m.ground}${m.status==='done'?' done':''}${(m.travel||[]).length?' hastravel':''}${st.my&&(st.my===m.a||st.my===m.b)?' mine':''}"><div class="mc-top"><span class="no">Match ${m.no}</span><span class="gtag g${m.ground}">${esc(st.settings.grounds[m.ground])}</span><span class="chip ${m.status}">${m.status==='done'?'Result in':m.status==='created'?'In CricHeroes':'Planned'}</span></div>
 <div class="mc-teams">${side(m.a)}<span class="vs">VS</span>${side(m.b)}</div>
 <div class="mc-meta">${esc(KE.matchLabel(st,m))}${m.result?`<br>${m.result.ra!==''&&m.result.ra!=null?`${esc(m.result.ra)}/${esc(m.result.oa||'')} v ${esc(m.result.rb)}/${esc(m.result.ob||'')}`:''} ${m.result.so?'· Super Over':''}`:''}</div>${trl}
 <div class="mc-act">${act}</div></div>`;
@@ -207,7 +211,7 @@ function shrink(file,max){return new Promise(res=>{const r=new FileReader();r.on
 /* ---------- FILES ---------- */
 function filesView(){
   const base=location.href.split('#')[0];
-  return `<div class="card"><h2>Share links</h2><div class="field"><label>YouTube streaming team</label><input readonly value="${esc(base+'#/yt')}" onclick="this.select()"></div><div class="field"><label>Practice simulation (committee and franchise owners)</label><input readonly value="${esc(base+'#/sim')}" onclick="this.select()"></div><div class="field"><label>Franchise owners</label><input readonly value="${esc(base+'#/team')}" onclick="this.select()"></div></div>
+  return `<div class="card"><h2>Share links</h2><div class="field"><label>Home page (share this one with everyone)</label><input readonly value="${esc(base)}" onclick="this.select()"></div><div class="field"><label>Committee login</label><input readonly value="${esc(base+'#/admin')}" onclick="this.select()"></div><div class="field"><label>YouTube streaming team</label><input readonly value="${esc(base+'#/yt')}" onclick="this.select()"></div><div class="field"><label>Practice simulation (committee and franchise owners)</label><input readonly value="${esc(base+'#/sim')}" onclick="this.select()"></div><div class="field"><label>Franchise owners</label><input readonly value="${esc(base+'#/team')}" onclick="this.select()"></div></div>
   <div class="card"><h2>Downloads</h2><div class="row"><button class="btn" data-act="dlgroups">Groups (CSV)</button><button class="btn" data-act="dlsched">Match schedule (CSV)</button><button class="btn" data-act="dlpoints">Points table (CSV)</button><button class="btn ghost" onclick="window.print()">Print schedule</button></div></div>
   <div class="card"><h2>Thumbnail download log</h2>${S.downloads.length?`<div class="scroll"><table class="tbl"><tr><th>When</th><th>Name</th><th>Mobile</th><th>Match</th></tr>${S.downloads.slice().reverse().slice(0,80).map(d=>`<tr><td>${new Date(d.t).toLocaleString('en-GB')}</td><td>${esc(d.name)}</td><td>${esc(d.mobile)}</td><td>${esc(d.match)}</td></tr>`).join('')}</table></div>`:'<p class="muted">No downloads yet.</p>'}</div>`;
 }
@@ -308,33 +312,97 @@ function psLoad(){
 }
 function psSave(){try{localStorage.setItem(PSKEY,JSON.stringify(Object.assign({},PS,{teams:[]})));}catch(e){}}
 function psStageLabel(sd,kind){const base=sd.label.replace(' · both groups','');return `${kind==='fx'?'Generate':'Generate'} ${base} ${kind==='fx'?'Fixture':'Results'}`;}
+
+const STAGE_HELP={
+ 'A-R1':'Round 1 pairs are drawn by lot. Win and you get 2 points. Everyone plays, so the ladder can start from Round 2.',
+ 'A-R2':'The ladder begins. Teams are ranked by points (then net run rate). 1st plays 2nd, 3rd plays 4th, 5th plays 6th, 7th plays 8th.',
+ 'A-R3':'Same ladder again on the updated table. If a pair has already met, the matches are shuffled inside the same half of the table.',
+ 'B-R1':'Group B plays on Friday. Round 1 is drawn by lot, just like Group A.',
+ 'B-R2':'The ladder for Group B: rank by points then net run rate, then 1v2, 3v4, 5v6, 7v8.',
+ 'B-R3':'Group B Round 3: no repeat opponents if it can be avoided.',
+ 'R4':'Saturday: both groups play Round 4 on the table so far. Top half meets top half, bottom half meets bottom half.',
+ 'R5':'The last league round. The final table decides who qualifies. The 8th placed team plays on Sunday morning.',
+ 'QF':'The top 4 of each group qualify. Quarter-finals cross the groups: A1 v B4, A2 v B3, B1 v A4, B2 v A3.',
+ 'SF':'Semi-finals: winner of QF1 plays winner of QF4, winner of QF2 plays winner of QF3.',
+ 'F':'The Grand Final is at FISAT after a 45 minute break. If a finalist is at the other ground, that is when it travels.'
+};
+const baseName=sd=>sd.label.replace(' · both groups','');
+function psSteps(st){return [{id:'G',label:'Groups',done:st.draw.groupsDone}].concat(KE.STAGES.map(sd=>{const ms=st.matches.filter(m=>m.stage===sd.id);return {id:sd.id,label:sd.id==='F'?'Final':sd.id.replace('-R',' R').replace('R4','Round 4').replace('R5','Round 5').replace('QF','Quarter-finals').replace('SF','Semi-finals'),done:!!st.stages[sd.id]&&ms.every(m=>m.status==='done')};}));}
+function psNextStep(st){
+  if(!st.draw.groupsDone)return {label:'🎲 Generate groups',act:'psgroups',title:'Step 1: make the groups',help:'16 teams are drawn into Group A and Group B (8 each). Tap the button and watch the draw.'};
+  for(const sd of KE.STAGES){const gen=st.stages[sd.id],ms=st.matches.filter(m=>m.stage===sd.id);
+    if(!gen){const c=KE.canGenerate(st,sd.id);if(c.ok)return {label:'Generate '+baseName(sd)+' fixture',act:'psgen',s:sd.id,title:baseName(sd),help:STAGE_HELP[sd.id]};return null;}
+    if(ms.some(m=>m.status!=='done'))return {label:'▶ Play '+baseName(sd)+' (random results)',act:'psres',s:sd.id,title:baseName(sd)+': fixture ready',help:'Fixture is ready. Tap to play it with random results, or pick the winner of each match yourself below to see what changes.'};}
+  return null;
+}
+function psWhy(st){
+  const id=st.lastGen;if(!id||!st.stages[id])return '';const sd=KE.STAGES.find(s=>s.id===id),snap=(st.snap||{})[id],ms=st.matches.filter(m=>m.stage===id);
+  let h=`<div class="card"><h2>Why these matches? <span class="chip created">${esc(baseName(sd))}</span></h2><p class="muted small">${esc(STAGE_HELP[id]||'')}</p>`;
+  if(snap){['A','B'].forEach(g=>{if(!snap[g])return;h+=`<h3>Group ${g} table before this round</h3><div class="scroll"><table class="tbl"><tr><th>#</th><th>Team</th><th class="num">Pts</th><th>Plays</th></tr>${snap[g].map(r=>{const m=ms.find(x=>x.a===r.id||x.b===r.id),opp=m?(m.a===r.id?m.b:m.a):null,op=opp?snap[g].find(z=>z.id===opp):null;return `<tr class="${r.pos<=4?'':''}"><td>${r.pos}</td><td>${esc(KE.tname(st,r.id))}</td><td class="num">${r.pts}</td><td>${opp?esc(KE.tname(st,opp))+(op?` <span class="muted small">(${op.pos}${['st','nd','rd'][op.pos-1]||'th'})</span>`:''):'—'}</td></tr>`;}).join('')}</table></div>`;});}
+  else if(sd.round===1)h+='<p class="small">Round 1 pairs come from the lot, so there is no table yet.</p>';
+  (st.notes[id]||[]).forEach(n=>h+=`<div class="note">ℹ ${esc(n)}</div>`);
+  return h+'</div>';
+}
+function psJourney(st){
+  if(!st.my)return '';const ms=st.matches.filter(m=>m.a===st.my||m.b===st.my).sort((p,q)=>p.day-q.day||p.start-q.start);
+  return `<div class="card"><h2>${crest(st.my)} ${esc(KE.tname(st,st.my))}: my journey</h2>${ms.length?ms.map(m=>{const opp=m.a===st.my?m.b:m.a,tv=(m.travel||[]).some(t=>t.team===st.my);return `<div class="mrow" style="cursor:default"><div style="flex:1"><b>${esc(KE.matchLabel(st,m))}</b> v ${esc(KE.tname(st,opp))}<div class="small muted">${KE.fmtDate(st,m.day).slice(0,11)} · ${KE.clock12(st,m.start)} · ${esc(st.settings.grounds[m.ground])}${tv?' · <span class="trav">✈ travel</span>':''}</div></div>${m.result?`<span class="chip ${m.result.winner===st.my?'done':'planned'}">${m.result.winner===st.my?'Won':'Lost'}</span>`:'<span class="chip created">Upcoming</span>'}</div>`;}).join(''):'<p class="muted">Your matches will appear as rounds are generated.</p>'}</div>`;
+}
 function psView(){
   if(!PS||PS.sigf!==frozenSig())psLoad();
-  const st=PS;let h='<div class="pub" style="max-width:980px">';
-  h+=`<div class="card"><h2>Practice simulation <span class="chip ready">Practice only</span></h2><p class="muted small">Try the Dynamic Ladder from the group draw to the Final. Results here are random or picked by you, are kept only on this device, and never affect the real tournament. Other people using this page do not see or change your simulation.</p>
-  <div class="banner ${S.frozen?'ok':''}">${S.frozen?'Groups are the official frozen draw.':'Official groups are not frozen yet. Generate your own groups to practise.'}</div>
-  <div class="row"><button class="btn red" data-act="psreset">Reset simulation</button></div></div>`;
-  if(!st.draw.groupsDone){h+=`<div class="card"><h2>Step 1 · Groups</h2><button class="btn gold" data-act="psgroups">🎲 Generate groups</button></div></div>`;return h;}
-  h+=`<div class="card"><h2>Groups</h2><div class="picks"><div><h3>Group A · 11, 13, 14 Feb</h3><ol>${slots(st.groups.A,8)}</ol></div><div><h3>Group B · 12, 13, 14 Feb</h3><ol>${slots(st.groups.B,8)}</ol></div></div>${S.frozen?'':'<button class="btn ghost sm" data-act="psgroups">Regenerate groups</button>'}</div>`;
-  h+=`<div class="card"><h2>Rounds</h2><p class="muted small">Fixture first, then its results. The next fixture opens when every result of the previous round is in. Real results will come from CricHeroes once the tournament starts.</p>`;
-  KE.STAGES.forEach(sd=>{
-    const gen=st.stages[sd.id],c=KE.canGenerate(st,sd.id),ms=st.matches.filter(m=>m.stage===sd.id),done=ms.filter(m=>m.status==='done').length;
-    h+=`<div class="stage"><div class="t">${esc(sd.label)}<small>${gen?done+'/'+ms.length+' results':esc(c.reason||'')}</small></div>
-    <button class="btn ${gen?'ghost':'gold'} sm" data-act="psgen" data-s="${sd.id}" ${c.ok?'':'disabled'}>${psStageLabel(sd,'fx')}</button>
-    <button class="btn ${gen&&done<ms.length?'gold':'ghost'} sm" data-act="psres" data-s="${sd.id}" ${gen&&done<ms.length?'':'disabled'}>${psStageLabel(sd,'res')}</button></div>`;
-  });
-  h+='</div>';
+  const st=PS,nx=psNextStep(st);let h='<div class="pub" style="max-width:980px">';
+  h+=`<div class="card"><h2>Try the Dynamic Ladder <span class="chip ready">Practice only</span></h2><p class="muted small">Play the whole tournament in a few taps. Nothing here affects the real tournament and other people cannot see your simulation.</p>
+  <div class="row"><div style="flex:1;min-width:200px"><label>Follow a team (optional)</label><select id="psmy" data-act="psmy"><option value="">None</option>${S.teams.map(t=>`<option value="${t.id}" ${st.my===t.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select></div><button class="btn red sm" style="margin-top:16px" data-act="psreset">Reset</button></div>
+  <div class="banner ${S.frozen?'ok':''}" style="margin:10px 0 0">${S.frozen?'Groups are the official frozen draw.':'Official groups are not frozen yet, so you make your own.'}</div></div>`;
+  h+=`<div class="prog">${psSteps(st).map((s,i,arr)=>{const cur=!s.done&&(i===0||arr[i-1].done);return `<span class="${s.done?'done':cur?'cur':''}">${s.done?'✓ ':''}${esc(s.label)}</span>`;}).join('')}</div>`;
+  const fin=st.matches.find(m=>m.kind==='Final'&&m.status==='done');
+  if(fin)h+=`<div class="champ">🏆 Champions: ${esc(KE.tname(st,fin.result.winner))}</div>`;
+  if(nx&&st.draw.groupsDone||(!st.draw.groupsDone))h+=nx?`<div class="card coach"><h2>${esc(nx.title)}</h2><p>${esc(nx.help)}</p></div>`:'';
+  else if(!fin)h+='';
+  if(!st.draw.groupsDone){h+=`<div class="fabbar"><button class="btn gold" data-act="psgroups">🎲 Generate groups</button></div></div>`;return h;}
+  h+=`<div class="card"><h2>Groups</h2><div class="picks"><div><h3>Group A · plays 11, 13, 14 Feb</h3><ol>${slots(st.groups.A,8)}</ol></div><div><h3>Group B · plays 12, 13, 14 Feb</h3><ol>${slots(st.groups.B,8)}</ol></div></div>${S.frozen?'':'<button class="btn ghost sm" data-act="psgroups">Draw again</button>'}</div>`;
+  h+=psWhy(st);
   h+=`<div class="daytabs">${[1,2,3,4].map(d=>`<button class="dt${psDay===d?' on':''}" data-act="psday" data-d="${d}">Day ${d} · ${KE.fmtDate(st,d).slice(0,11)}</button>`).join('')}</div>`;
   const ms=st.matches.filter(m=>m.day===psDay);
-  if(!ms.length)h+='<div class="card muted">No matches generated for this day yet.</div>';
+  if(!ms.length)h+='<div class="card muted">Nothing scheduled for this day yet. Use the big button below to move the tournament forward.</div>';
   else{
     const starts=[...new Set(ms.map(m=>m.start))].sort((p,q)=>p-q);
     h+=`<div class="row small muted" style="margin-bottom:8px"><span class="gtag">${esc(gname(0))}</span><span class="gtag g1">${esc(gname(1))}</span><span class="tvb">✈ TRAVEL</span><span>= team that has to change ground</span></div>`;
     starts.forEach(s=>{h+=`<div class="slot"><div class="tm">${KE.clock12(st,s)}<small>to ${KE.clock12(st,s+KE.dur(st,psDay))}</small></div>${[0,1].map(g=>{const m=ms.find(x=>x.start===s&&x.ground===g);return m?mcard(m,st,psActions(m)):'<div class="muted small" style="padding:10px">—</div>';}).join('')}</div>`;});
   }
-  h+=['A','B'].map(g=>{const rows=KE.standings(st,g);return `<div class="card"><h2>Group ${g} points table</h2><div class="scroll"><table class="tbl"><tr><th>#</th><th>Team</th><th class="num">P</th><th class="num">W</th><th class="num">Pts</th><th class="num">NRR</th></tr>${rows.map(r=>`<tr class="${r.pos<=4?'q':''}"><td>${r.pos}</td><td>${esc(KE.tname(st,r.id))}</td><td class="num">${r.p}</td><td class="num">${r.w}</td><td class="num"><b>${r.pts}</b></td><td class="num">${r.nrr>=0?'+':''}${r.nrr.toFixed(3)}</td></tr>`).join('')}</table></div></div>`;}).join('');
-  h+=groundCard(st);
+  h+=psJourney(st);
+  h+=['A','B'].map(g=>{const rows=KE.standings(st,g);return `<div class="card"><h2>Group ${g} points table</h2><div class="scroll"><table class="tbl"><tr><th>#</th><th>Team</th><th class="num">P</th><th class="num">W</th><th class="num">Pts</th><th class="num">NRR</th></tr>${rows.map(r=>`<tr class="${r.pos<=4?'q':''}"><td>${r.pos}</td><td><span class="row" style="flex-wrap:nowrap;gap:6px">${crest(r.id)}${esc(KE.tname(st,r.id))}</span></td><td class="num">${r.p}</td><td class="num">${r.w}</td><td class="num"><b>${r.pts}</b></td><td class="num">${r.nrr>=0?'+':''}${r.nrr.toFixed(3)}</td></tr>`).join('')}</table></div><p class="muted small">Green rows are the top 4: they qualify for the quarter-finals.</p></div>`;}).join('');
+  h+=`<details class="more"><summary>All rounds (manual control)</summary><div style="margin-top:10px">${KE.STAGES.map(sd=>{const gen=st.stages[sd.id],c=KE.canGenerate(st,sd.id),ms2=st.matches.filter(m=>m.stage===sd.id),done=ms2.filter(m=>m.status==='done').length;return `<div class="stage"><div class="t">${esc(sd.label)}<small>${gen?done+'/'+ms2.length+' results':esc(c.reason||'')}</small></div><button class="btn ${gen?'ghost':'gold'} sm" data-act="psgen" data-s="${sd.id}" ${c.ok?'':'disabled'}>Generate ${esc(baseName(sd))} Fixture</button><button class="btn ${gen&&done<ms2.length?'gold':'ghost'} sm" data-act="psres" data-s="${sd.id}" ${gen&&done<ms2.length?'':'disabled'}>Generate ${esc(baseName(sd))} Results</button></div>`;}).join('')}</div></details>`;
+  h+=`<details class="more"><summary>Ground changes (for organisers)</summary><div style="margin-top:10px">${groundCard(st)}</div></details>`;
+  if(nx)h+=`<div class="fabbar"><button class="btn gold" data-act="${nx.act}" data-s="${nx.s||''}">${esc(nx.label)}</button></div>`;
+  else if(fin)h+=`<div class="fabbar"><button class="btn gold" data-act="psreset">🔁 Start a new simulation</button></div>`;
   return h+'</div>';
+}
+function homeView(){
+  return `<div class="pub" style="max-width:980px"><div class="hero"><h1>KNPL-7 Dynamic Ladder</h1><p>Win and climb, lose and slide. Every match is against a team of similar strength.</p><p>Learn how the league works in two minutes, then play the whole tournament yourself.</p>
+  <div class="facts"><span>16 teams</span><span>2 groups of 8</span><span>5 ladder rounds</span><span>Top 4 qualify</span><span>11–14 Feb 2027 · Angamaly</span></div></div>
+  <div class="bigcards"><a class="bigcard" href="#/learn"><div class="n">1</div><h3>How it works</h3><p>A simple, picture-style guide to groups, rounds, the ladder and the knockouts.</p></a>
+  <a class="bigcard" href="#/sim"><div class="n">2</div><h3>Try the simulation</h3><p>Draw groups, play every round to the Final with one button, and follow your own team.</p></a>
+  <a class="bigcard" href="#/team"><div class="n">3</div><h3>Franchise owners</h3><p>See your own matches, grounds, timings and results once the real fixtures are out.</p></a></div>
+  <p class="muted small" style="text-align:center">Practice results are not real. <a href="#/admin" style="color:var(--mute)">Committee login</a></p></div>`;
+}
+function learnView(){
+  const rung=(n,t,low)=>`<div class="rung ${low?'low':''}"><b>${n}</b>${t}</div>`;
+  return `<div class="pub" style="max-width:860px"><div class="crumbs"><a href="#/">Home</a><a href="#/sim">Try the simulation →</a></div>
+  <div class="sec"><h2><span class="n">★</span>The big picture</h2><p>16 teams, two groups, five rounds, then knockouts. Every team plays 5 league matches.</p>
+  <div class="tl"><span class="st">Group draw</span><span class="ar">→</span><span class="st">5 ladder rounds</span><span class="ar">→</span><span class="st">Quarter-finals</span><span class="ar">→</span><span class="st">Semi-finals</span><span class="ar">→</span><span class="st">Grand Final</span></div></div>
+  <div class="sec"><h2><span class="n">1</span>Two groups</h2><p>Teams are drawn by lot into Group A and Group B, 8 teams each.</p><p><b>Group A</b> plays on Thu 11 Feb, Sat 13 Feb and Sun 14 Feb. <b>Group B</b> plays on Fri 12 Feb, Sat 13 Feb and Sun 14 Feb.</p></div>
+  <div class="sec"><h2><span class="n">2</span>Round 1: by lot</h2><p>The first round pairs are drawn by lot (this is the Rising Star Marque match). A win is worth <b>2 points</b>. Every match must have a winner; a tie goes to a Super Over.</p></div>
+  <div class="sec"><h2><span class="n">3</span>The ladder (Round 2 onwards)</h2><p>After every round the table is updated: points first, then net run rate. Then the ladder pairs teams <b>next to each other</b>:</p>
+  <div class="ladder">${rung(1,'plays 2nd')}${rung(2,'plays 1st')}${rung(3,'plays 4th')}${rung(4,'plays 3rd')}${rung(5,'plays 6th',1)}${rung(6,'plays 5th',1)}${rung(7,'plays 8th',1)}${rung(8,'plays 7th',1)}</div>
+  <p><b>Top half (1–4)</b> only plays the top half. <b>Bottom half (5–8)</b> only plays the bottom half. So you always meet a team that is doing about as well as you. Win and climb; lose and slide.</p></div>
+  <div class="sec"><h2><span class="n">4</span>No repeat opponents</h2><p>If the ladder pair has already met in this league, we shuffle <i>inside the same half</i>:</p>
+  <div class="pairbox"><div class="opt"><b>Standard</b><br>1 v 2 and 3 v 4</div><div class="opt"><b>Shuffle 1</b><br>1 v 3 and 2 v 4</div><div class="opt"><b>Shuffle 2</b><br>1 v 4 and 2 v 3</div><div class="opt no"><b>Still repeats?</b><br>Back to the original schedule (1 v 2, 3 v 4, 5 v 6, 7 v 8). A rematch is then allowed.</div></div>
+  <p class="small muted">The same rule applies to positions 5–8. Teams from the top half never play the bottom half.</p></div>
+  <div class="sec"><h2><span class="n">5</span>Knockouts</h2><p>The top 4 of each group qualify.</p>
+  <div class="pairbox"><div class="opt"><b>Quarter-finals</b><br>QF1: A1 v B4<br>QF2: A2 v B3<br>QF3: B1 v A4<br>QF4: B2 v A3</div><div class="opt"><b>Semi-finals</b><br>SF1: QF1 winner v QF4 winner<br>SF2: QF2 winner v QF3 winner</div></div>
+  <p>The <b>Grand Final</b> is at FISAT on Sunday 14 Feb.</p></div>
+  <div class="sec"><h2><span class="n">6</span>Two grounds</h2><p>Matches are played at FISAT and Boundary Grounds, which are not close. The fixture tries to keep every team at one ground. When a team must change ground, it shows a red <span class="tvb">✈ TRAVEL</span> tag and gets 30 minutes to move. All play ends by 6 PM.</p></div>
+  <div class="sec" style="text-align:center"><h2 style="justify-content:center">Ready?</h2><a class="btn gold" href="#/sim" style="text-decoration:none">Try the simulation</a></div></div>`;
 }
 function psActions(m){
   const w=m.status==='done'?`<span class="chip done">${esc(m.result.winner)} won</span> <button class="btn ghost sm" data-act="psclr" data-n="${m.no}">Undo</button>`:`<button class="btn sm" data-act="pswin" data-n="${m.no}" data-w="${m.a}">${esc(m.a)} wins</button> <button class="btn sm" data-act="pswin" data-n="${m.no}" data-w="${m.b}">${esc(m.b)} wins</button>`;
@@ -407,8 +475,8 @@ document.addEventListener('click',async e=>{
   case 'chclear':if(S.chOrder)delete S.chOrder[el.dataset.g];save();render();break;
   case 'psreset':if(confirm('Reset your practice simulation?')){PS=psNew();psDay=1;psSave();render();}break;
   case 'psgroups':{const ids=shuffle(S.teams.map(t=>t.id));PS=psNew();PS.groups={A:ids.slice(0,8),B:ids.slice(8)};PS.draw.groupsDone=true;psLot(PS);psSave();render();break;}
-  case 'psgen':{const id=el.dataset.s,sd=KE.STAGES.find(s=>s.id===id);KE.generate(PS,id);psDay=PS.matches.find(m=>m.stage===id).day;psSave();render();break;}
-  case 'psres':KE.simStage(PS,el.dataset.s,STR());psSave();render();break;
+  case 'psgen':{const id=el.dataset.s,sd=KE.STAGES.find(s=>s.id===id);PS.snap=PS.snap||{};PS.snap[id]={};if(sd.round!==1&&sd.round!=null||['R4','R5'].includes(id)){(sd.group?[sd.group]:['A','B']).forEach(g=>{PS.snap[id][g]=KE.standings(PS,g).map(r=>({id:r.id,pts:r.pts,pos:r.pos}));});}PS.lastGen=id;KE.generate(PS,id);psDay=PS.matches.find(m=>m.stage===id).day;psSave();render();break;}
+  case 'psres':KE.simStage(PS,el.dataset.s,STR());psSave();render();window.scrollTo({top:0,behavior:'smooth'});break;
   case 'psday':psDay=+el.dataset.d;render();break;
   case 'pswin':{const m=PS.matches.find(x=>x.no===n),w=el.dataset.w,aw=w===m.a;KE.setResult(PS,n,{winner:w,ra:aw?100:90,oa:'10',rb:aw?90:100,ob:'10'});psSave();render();break;}
   case 'psclr':KE.clearResult(PS,n);psSave();render();break;
@@ -443,6 +511,7 @@ document.addEventListener('click',async e=>{
 document.addEventListener('change',async e=>{
   const t=e.target;
   if(t.dataset.act==='tsel'){thumbSel=+t.value;previewSel();}
+  if(t.dataset.act==='psmy'){PS.my=t.value||null;psSave();render();}
   if(t.dataset.splogo){const k=t.dataset.splogo;S.sponsorRoles[k]=S.sponsorRoles[k]||{};S.sponsorRoles[k].img=await shrink(t.files[0],400);save();render();}
   if(t.dataset.tlogo){KE.team(S,t.dataset.tlogo).logo=await shrink(t.files[0],300);save();render();}
   if(t.dataset.sp){const k=t.dataset.sp;S.sponsorRoles[k]=S.sponsorRoles[k]||{};S.sponsorRoles[k].name=t.value.trim();save();}
