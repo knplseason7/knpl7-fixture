@@ -127,127 +127,145 @@
     return { ok: true };
   };
 
-  /* ---------- scheduler ---------- */
+  /* ---------- fixed fixture grid (same layout as the committee's Excel sheet) ----------
+     47 numbered matches, each with a fixed day, time and ground. Teams are filled in round by round.
+     Odd numbers are FISAT, even numbers are Boundary; two matches share every time slot. */
+  E.slotMins = st => st.settings.slotMins || 90;
+  E.STAGE_POS = {
+    'A-R1': [[1, 0], [1, 1]], 'A-R2': [[1, 2], [1, 3]], 'A-R3': [[1, 4], [1, 5]],
+    'B-R1': [[2, 0], [2, 1]], 'B-R2': [[2, 2], [2, 3]], 'B-R3': [[2, 4], [2, 5]],
+    'R4': [[3, 0], [3, 1], [3, 2], [3, 3]], 'R5': [[3, 4], [3, 5], [3, 6], [4, 0]],
+    'QF': [[4, 1], [4, 2]], 'SF': [[4, 3]], 'F': [[4, 4]]
+  };
+  E.STAGE_NAME = { 'A-R1': 'Round 1', 'A-R2': 'Round 2', 'A-R3': 'Round 3', 'B-R1': 'Round 1', 'B-R2': 'Round 2', 'B-R3': 'Round 3', R4: 'Round 4', R5: 'Round 5', QF: 'Quarter-final', SF: 'Semi-final', F: 'FINAL' };
   const dayBase = st => { const b = {}; let t = 0; for (let d = 1; d <= 4; d++) { b[d] = t; t += st.settings.caps[d][0] + st.settings.caps[d][1]; } return b; };
-  function dayState(st, day) {
-    const free = [0, 0], used = [0, 0], last = {}, chg = {}, won = {};
-    st.matches.filter(m => m.day === day).sort((a, b) => a.start - b.start).forEach(m => {
-      free[m.ground] = Math.max(free[m.ground], m.end); used[m.ground]++;
-      [m.a, m.b].forEach(t => { if (m.result) won[t] = m.result.winner === t; if (last[t] && last[t].g !== m.ground) chg[t] = (chg[t] || 0) + 1; last[t] = { end: m.end, g: m.ground }; });
-    });
-    return { free, used, last, chg, won, day };
+  E.slotStart = (st, day, slot) => (day === 4 && slot === 4) ? 4 * E.slotMins(st) + st.settings.finalBreakMins : slot * E.slotMins(st);
+  E.matchNo = (st, d, s, g) => dayBase(st)[d] + s * 2 + g + 1;
+  E.positions = function (st, id) {
+    const out = [];
+    (E.STAGE_POS[id] || []).forEach(([d, s]) => [0, 1].forEach(g => { if (id === 'F' && g === 1) return; out.push({ day: d, slot: s, ground: g, no: E.matchNo(st, d, s, g), start: E.slotStart(st, d, s) }); }));
+    return out;
+  };
+  /* every row of the fixture, filled or blank */
+  E.grid = function (st) {
+    const rows = [];
+    E.STAGES.forEach(sd => E.positions(st, sd.id).forEach(p => rows.push(Object.assign({ stage: sd.id, roundName: E.STAGE_NAME[sd.id], group: sd.group || null, end: p.start + E.dur(st, p.day) }, p, { match: null }))));
+    rows.sort((a, b) => a.no - b.no);
+    const by = {}; st.matches.forEach(m => by[m.no] = m);
+    rows.forEach(r => r.match = by[r.no] || null);
+    return rows;
+  };
+
+  /* ---------- scheduler: choose which pair goes into which fixed slot ---------- */
+  E.WB = 1;       // weight of a back-to-back match, compared with one ground change
+  E.WPEN = 0.15;  // weight that makes the lower-ranked / losing team the one that travels
+  function context(st) {
+    const old = {}, last = {}, rank = {};
+    st.matches.slice().sort((a, b) => a.start - b.start).forEach(m => [m.a, m.b].forEach(t => {
+      const k = t + '|' + m.day; (old[k] = old[k] || []).push({ start: m.start, end: m.end, g: m.ground, no: m.no, nw: 0 });
+      if (m.result) last[t + '|' + m.day] = m.result.winner === t;
+    }));
+    if (st.draw.groupsDone) ['A', 'B'].forEach(g => E.standings(st, g).forEach(r => rank[r.id] = r.pos));
+    return { old, last, rank };
   }
-  function evalAssign(st, F, B, ds, ready) {
-    const dur = E.dur(st, ds.day), tr = st.settings.travelMins, free = ds.free.slice(), res = [];
-    let sw = 0, delay = 0, end = 0, viol = 0, pen = 0; const cc = Object.assign({}, ds.chg), lg = {}; Object.keys(ds.last).forEach(k => lg[k] = ds.last[k].g);
-    [[0, F], [1, B]].forEach(([g, lst]) => {
-      let t = free[g];
-      lst.forEach(p => {
-        let s = Math.max(t, ready); const ideal = s; const trav = [];
-        [p[0], p[1]].forEach(tm => {
-          const ls = ds.last[tm];
-          if (ls) { if (ls.g !== g) { sw++; trav.push({ team: tm, from: ls.g }); s = Math.max(s, ls.end + tr); } else s = Math.max(s, ls.end); }
-          const pg = lg[tm]; if (pg != null && pg !== g) { cc[tm] = (cc[tm] || 0) + 1; if (cc[tm] > 1) viol++; pen += ds.rank && ds.rank[tm] ? (9 - ds.rank[tm]) / 8 : (ds.won[tm] ? 1 : 0); } lg[tm] = g;
-        });
-        delay += s - ideal;
-        res.push({ p, g, start: s, end: s + dur, trav }); t = s + dur; end = Math.max(end, t);
-      });
-      free[g] = t;
-    });
-    const lim = E.minFromClock(st, st.settings.lastLight); return { end, sw, delay, viol, pen, late: Math.max(0, end - lim), res };
-  }
-  const cmp = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] - b[i]; return 0; };
-  function allCands(st, pairs, ds, ready, capLeft) {
-    const m = pairs.length;
-    if (m > 6) { const F = pairs.filter(p => p.group === 'A'), B = pairs.filter(p => p.group !== 'A'); return [evalAssign(st, F, B, ds, ready)]; }
-    const out = {}, idx = pairs.map((_, i) => i);
-    (function perm(arr, rest) {
-      if (!rest.length) {
-        for (let k = 0; k <= arr.length; k++) {
-          if (k > capLeft[0] || arr.length - k > capLeft[1]) continue;
-          const r = evalAssign(st, arr.slice(0, k).map(i => pairs[i]), arr.slice(k).map(i => pairs[i]), ds, ready);
-          const sig = r.res.map(x => pairs.indexOf(x.p) + ':' + x.g).sort().join('|');
-          if (!out[sig] || cmp(key4(r), key4(out[sig])) < 0) out[sig] = r;
-        }
-        return;
+  /* score one way of filling the slots. Lower is better. */
+  function score(st, assign, ctx) {
+    const tr = st.settings.travelMins; let sw = 0, viol = 0, tight = 0, b2b = 0, pen = 0; const per = {};
+    assign.forEach(({ p, pos }) => [p[0], p[1]].forEach(t => { const k = t + '|' + pos.day; (per[k] = per[k] || []).push({ start: pos.start, end: pos.start + E.dur(st, pos.day), g: pos.ground, nw: 1, t }); }));
+    Object.keys(per).forEach(k => {
+      const seq = (ctx.old[k] || []).concat(per[k]).sort((a, b) => a.start - b.start); let ch = 0; const t = k.split('|')[0];
+      for (let i = 1; i < seq.length; i++) {
+        const a = seq[i - 1], b = seq[i]; if (!a.nw && !b.nw) { if (a.g !== b.g) ch++; continue; }
+        const rest = b.start - a.end;
+        if (a.g !== b.g) { ch++; sw++; if (rest < tr) tight++; pen += ctx.rank[t] ? (9 - ctx.rank[t]) / 8 : (ctx.last[k] ? 1 : 0); }
+        if (rest < tr) b2b++;
       }
-      rest.forEach((x, i) => perm(arr.concat(x), rest.slice(0, i).concat(rest.slice(i + 1))));
-    })([], idx);
-    return Object.values(out);
+      if (ch > 1) viol += ch - 1;
+    });
+    return { sw, viol, tight, b2b, pen, cost: sw + E.WB * b2b, assign };
   }
-  function key4(r) { return [r.late > 0 ? 1 : 0, r.sw, r.viol, E.WPEN ? r.pen : 0, r.end, r.delay]; }
-  function bestOf(list) { return list.slice().sort((a, b) => cmp(key4(a), key4(b)))[0]; }
-  /* ---- look-ahead: simulate the rest of the day for each candidate and pick the one with fewest expected double changes ---- */
-  E.LOOK = { M: 24, on: true }; E.WPEN = 0.15; E.EPS = 1.0;
-  const CHAIN = { 'A-R1': ['A-R2', 'A-R3'], 'A-R2': ['A-R3'], 'B-R1': ['B-R2', 'B-R3'], 'B-R2': ['B-R3'], 'R5': ['QF', 'SF', 'F'], 'QF': ['SF', 'F'], 'SF': ['F'] };
+  const cmpv = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] - b[i]; return 0; };
+  E.WT = 1000;
+  const skey = r => [E.WT >= 1000 ? r.tight : 0, r.viol, r.cost + (E.WT >= 1000 ? 0 : E.WT * r.tight), E.WPEN ? r.pen : 0];
+  function allAssign(st, id, pairs, ctx) {
+    const pos = E.positions(st, id), n = pairs.length, out = [];
+    if (pos.length < n) throw new Error('No free slots for ' + id);
+    const used = new Array(pos.length).fill(false), cur = [];
+    (function rec(i) {
+      if (i === n) { out.push(score(st, cur.map(c => ({ p: c.p, pos: c.pos })), ctx)); return; }
+      for (let j = 0; j < pos.length; j++) {
+        if (used[j]) continue; const p = pairs[i]; if (p.onlyDay && p.onlyDay !== pos[j].day) continue;
+        used[j] = true; cur.push({ p, pos: pos[j] }); rec(i + 1); cur.pop(); used[j] = false;
+      }
+    })(0);
+    return out;
+  }
+  /* look-ahead: play the rest of the chain at random several times and keep the choice with the fewest expected changes */
+  E.LOOK = { M: 24, on: true }; E.EPS = 1.0;
+  const CHAIN = { 'A-R1': ['A-R2', 'A-R3'], 'A-R2': ['A-R3'], 'B-R1': ['B-R2', 'B-R3'], 'B-R2': ['B-R3'], R4: ['R5'], R5: ['QF', 'SF', 'F'], QF: ['SF', 'F'], SF: ['F'] };
   function miniClone(st) {
     return { v: 1, settings: st.settings, teams: st.teams.map(t => ({ id: t.id, name: t.name })), draw: st.draw, groups: st.groups, lot: st.lot,
       matches: st.matches.map(m => Object.assign({}, m, { result: m.result ? Object.assign({}, m.result) : null })), stages: Object.assign({}, st.stages), notes: {}, sponsorRoles: {}, matchSponsors: {}, downloads: [] };
   }
-  function rollScore(st, day) {
-    let ex = 0, tot = 0, pen = 0;
-    const by = {}, won = {};
-    st.matches.filter(m => m.day === day).sort((a, b) => a.start - b.start).forEach(m => {
-      [m.a, m.b].forEach(t => { const l = by[t]; if (l && l.g !== m.ground) { l.c++; tot++; if (won[t]) pen++; } by[t] = l ? { g: m.ground, c: l.c } : { g: m.ground, c: 0 }; });
-      if (m.result) { won[m.a] = m.result.winner === m.a; won[m.b] = m.result.winner === m.b; }
-    });
-    Object.values(by).forEach(v => { if (v.c > 1) ex += v.c - 1; });
-    const e = Math.max(0, ...st.matches.filter(m => m.day === day).map(m => m.end)), lim = E.minFromClock(st, st.settings.lastLight);
-    return tot + ex * 2 + pen * E.WPEN + Math.max(0, e - lim) / 5;
-  }
-  function rollout(st, day, r, batchMeta, stageId, chain) {
-    const c = miniClone(st), base = dayBase(st)[day] + st.matches.filter(m => m.day === day).length;
-    r.res.slice().sort((x, y) => x.start - y.start || x.g - y.g).forEach((x, i) => c.matches.push({ no: base + i + 1, stage: x.p.stage, round: x.p.round || null, group: x.p.group, kind: x.p.kind, label: x.p.label, day, ground: x.g, start: x.start, end: x.end, a: x.p[0], b: x.p[1], travel: x.trav, status: 'planned', result: null, actualEnd: null }));
-    c.stages[stageId] = { at: 0 }; E._roll = true;
+  /* post-hoc metrics of a whole fixture (used by the look-ahead and by the ground report) */
+  E.metrics = function (st) {
+    const tr = st.settings.travelMins; let sw = 0, viol = 0, tight = 0, b2b = 0, pen = 0, ms = 0;
+    st.teams.forEach(t => { for (let d = 1; d <= 4; d++) {
+      const seq = st.matches.filter(m => m.day === d && (m.a === t.id || m.b === t.id)).sort((a, b) => a.start - b.start); let ch = 0; ms += seq.length;
+      for (let i = 1; i < seq.length; i++) { const a = seq[i - 1], b = seq[i], rest = b.start - a.end;
+        if (a.ground !== b.ground) { ch++; sw++; if (rest < tr) tight++; if (a.result && a.result.winner === t.id) pen++; }
+        if (rest < tr) b2b++; }
+      if (ch > 1) viol += ch - 1;
+    } });
+    return { sw, viol, tight, b2b, pen };
+  };
+  const rollScore = st => { const m = E.metrics(st); return m.sw + 2 * m.viol + 8 * m.tight + E.WB * m.b2b + E.WPEN * m.pen; };
+  function rollout(st, id, cand, chain) {
+    const c = miniClone(st); E._roll = true;
     try {
-      const sim = id => c.matches.filter(m => m.stage === id && m.status !== 'done').forEach(m => { const aw = Math.random() < .5, ra = 70 + Math.floor(Math.random() * 70), rb = 70 + Math.floor(Math.random() * 70); m.result = { winner: aw ? m.a : m.b, ra: aw ? Math.max(ra, rb + 1) : Math.min(ra, rb - 1), oa: '10', rb: aw ? Math.min(rb, ra - 1) : Math.max(rb, ra + 1), ob: '10' }; m.status = 'done'; });
-      sim(stageId);
-      for (const id of chain) { E.generate(c, id); sim(id); }
+      place(c, id, cand.assign); c.stages[id] = { at: 0 };
+      const sim = sid => c.matches.filter(m => m.stage === sid && m.status !== 'done').forEach(m => { const aw = Math.random() < .5, ra = 70 + Math.floor(Math.random() * 70), rb = 70 + Math.floor(Math.random() * 70); m.result = { winner: aw ? m.a : m.b, ra: aw ? Math.max(ra, rb + 1) : Math.min(ra, rb - 1), oa: '10', rb: aw ? Math.min(rb, ra - 1) : Math.max(rb, ra + 1), ob: '10' }; m.status = 'done'; });
+      sim(id);
+      for (const nid of chain) { E.generate(c, nid); sim(nid); }
     } catch (e) { E._roll = false; return null; }
-    E._roll = false; return rollScore(c, day);
+    E._roll = false; return rollScore(c);
   }
-  function chooseLook(st, day, cands, stageId) {
-    const chain = CHAIN[stageId]; if (!E.LOOK.on || E._roll || !chain || cands.length < 2) return bestOf(cands);
-    const ok0 = cands.filter(c => !c.late); if (ok0.length) cands = ok0;
-    const ms = Math.min(...cands.map(c => c.sw));
-    let pool = cands.filter(c => c.sw <= ms + 4).sort((a, b) => cmp(key4(a), key4(b))).slice(0, 60);
-    if (pool.length < 2) return pool[0] || bestOf(cands);
-    const scored = pool.map(c => {
-      let sum = 0, n = 0; for (let i = 0; i < E.LOOK.M; i++) { const v = rollout(st, day, c, null, stageId, chain); if (v != null) { sum += v; n++; } }
-      return { c, sc: n ? sum / n : 9 };
-    });
-    const bestSc = Math.min(...scored.map(x => x.sc));
-    const near = scored.filter(x => x.sc <= bestSc + (E.WPEN ? E.EPS : 0));
-    near.sort((x, y) => (E.WPEN ? x.c.pen - y.c.pen : 0) || x.sc - y.sc || x.c.sw - y.c.sw || x.c.end - y.c.end);
-    const best = near[0];
-    return best.c;
+  function choose(st, id, cands) {
+    cands.sort((a, b) => cmpv(skey(a), skey(b)));
+    const chain = CHAIN[id]; if (!E.LOOK.on || E._roll || !chain || cands.length < 2) return cands[0];
+    const best = cands[0]; if (best.tight > 0 && E.WT >= 1000) return best;
+    const ok = E.WT >= 1000 ? cands.filter(c => c.tight === 0) : cands;
+    const ms = Math.min(...ok.map(c => c.cost));
+    const pool = ok.filter(c => c.cost <= ms + 3).slice(0, id === 'R4' ? 14 : 48);
+    if (pool.length < 2) return pool[0];
+    const M = id === 'R4' ? 6 : E.LOOK.M;
+    const scored = pool.map(c => { let s = 0, n = 0; for (let i = 0; i < M; i++) { const v = rollout(st, id, c, chain); if (v != null) { s += v; n++; } } return { c, sc: n ? s / n : 99 }; });
+    const bs = Math.min(...scored.map(x => x.sc));
+    const near = scored.filter(x => x.sc <= bs + (E.WPEN ? E.EPS : 0));
+    near.sort((x, y) => (E.WPEN ? x.c.pen - y.c.pen : 0) || x.sc - y.sc || x.c.cost - y.c.cost);
+    return near[0].c;
   }
-
-  /* batch: [{a,b,group,kind,label,round,stage}] */
-  E.scheduleBatch = function (st, day, batch, opts) {
-    opts = opts || {};
-    const ds = dayState(st, day), caps = st.settings.caps[day];
-    ds.rank = {}; if (st.draw.groupsDone) ['A', 'B'].forEach(g => E.standings(st, g).forEach(r => ds.rank[r.id] = r.pos));
-    const finalReserve = day === 4 && !opts.final ? 1 : 0;
-    const capLeft = [caps[0] - ds.used[0] - finalReserve, caps[1] - ds.used[1]];
-    const dayMs = st.matches.filter(m => m.day === day);
-    let ready = 0;
-    if (dayMs.length) ready = Math.max(...dayMs.map(m => (m.actualEnd != null ? m.actualEnd : m.end))) + (opts.breakMins != null ? opts.breakMins : st.settings.gapMins);
-    let r;
-    if (opts.pickFinal) { const r0 = evalAssign(st, batch, [], ds, ready), r1 = evalAssign(st, [], batch, ds, ready); r = (r1.sw < r0.sw) ? r1 : r0; }
-    else if (opts.fixedGround != null) r = evalAssign(st, opts.fixedGround === 0 ? batch : [], opts.fixedGround === 1 ? batch : [], ds, ready);
-    else r = chooseLook(st, day, allCands(st, batch, ds, ready, capLeft), opts.stageId);
-    const base = dayBase(st)[day] + dayMs.length;
-    const out = r.res.slice().sort((x, y) => x.start - y.start || x.g - y.g);
-    const made = out.map((x, i) => {
-      const p = x.p;
-      return {
-        no: base + i + 1, stage: p.stage, round: p.round || null, group: p.group, kind: p.kind, label: p.label, day, ground: x.g,
-        start: x.start, end: x.end, a: p[0], b: p[1], travel: x.trav, status: 'planned', chUrl: '', result: null, actualEnd: null
-      };
+  /* turn a chosen assignment into match records (with Travel for / back-to-back info) */
+  function place(st, id, assign) {
+    const tr = st.settings.travelMins, made = [];
+    assign.slice().sort((x, y) => x.pos.no - y.pos.no).forEach(({ p, pos }) => {
+      const travel = [], b2b = [], start = pos.start;
+      [p[0], p[1]].forEach(t => {
+        const prev = st.matches.filter(m => m.day === pos.day && (m.a === t || m.b === t) && m.start < start).sort((a, b) => b.start - a.start)[0];
+        if (!prev) return; const rest = start - prev.end;
+        if (prev.ground !== pos.ground) travel.push({ team: t, from: prev.ground, prevNo: prev.no, rest, tight: rest < tr });
+        if (rest < tr) b2b.push(t);
+      });
+      const m = { no: pos.no, stage: p.stage, round: p.round || null, group: p.group, kind: p.kind, label: p.label, day: pos.day, slot: pos.slot, ground: pos.ground,
+        start, end: start + E.dur(st, pos.day), a: p[0], b: p[1], travel, b2b, status: 'planned', chUrl: '', result: null, actualEnd: null };
+      st.matches.push(m); made.push(m);
     });
-    st.matches.push(...made);
     return made;
+  }
+  /* pairs: [a,b] arrays carrying group/kind/label/round/stage (and optional onlyDay) */
+  E.scheduleBatch = function (st, id, pairs) {
+    const ctx = context(st), cands = allAssign(st, id, pairs, ctx), best = choose(st, id, cands);
+    return place(st, id, best.assign);
   };
 
   /* ---------- stage generation ---------- */
@@ -258,36 +276,36 @@
     let created = [], notes = [];
     if (['A-R1', 'B-R1'].includes(id)) {
       const g = sd.group, pairs = st.lot[g].map(p => mk(p[0], p[1], g, 'league', 'Round 1 · RSM match', 1, id));
-      created = E.scheduleBatch(st, sd.day, pairs, { stageId: id }); notes.push('Round 1 pairs are from the lot draw');
+      created = E.scheduleBatch(st, id, pairs); notes.push('Round 1 pairs are from the lot draw');
     } else if (/^[AB]-R[23]$/.test(id)) {
       const g = sd.group, r = E.pairGroup(st, g); notes = r.notes;
-      created = E.scheduleBatch(st, sd.day, r.pairs.map(p => mk(p[0], p[1], g, 'league', 'Round ' + sd.round, sd.round, id)), { stageId: id });
+      created = E.scheduleBatch(st, id, r.pairs.map(p => mk(p[0], p[1], g, 'league', 'Round ' + sd.round, sd.round, id)));
     } else if (id === 'R4') {
       const all = [];
       ['A', 'B'].forEach(g => { const r = E.pairGroup(st, g); notes.push(...r.notes.map(n => `Group ${g} ${n}`)); r.pairs.forEach(p => all.push(mk(p[0], p[1], g, 'league', 'Round 4', 4, id))); });
-      created = E.scheduleBatch(st, 3, all);
+      created = E.scheduleBatch(st, id, all);
     } else if (id === 'R5') {
-      const day3 = [], spill = [];
+      const day3 = [];
       ['A', 'B'].forEach(g => {
         const tb = E.standings(st, g).map(r => r.id), r = E.pairGroup(st, g); notes.push(...r.notes.map(n => `Group ${g} ${n}`));
         const e8 = tb[7];
-        r.pairs.forEach(p => { const m = mk(p[0], p[1], g, 'league', 'Round 5', 5, id); if (p.includes(e8)) { m.label = 'Round 5 · Sunday morning'; spill.push(m); } else day3.push(m); });
+        r.pairs.forEach(p => { const m = mk(p[0], p[1], g, 'league', 'Round 5', 5, id); if (p.includes(e8)) { m.label = 'Round 5 · Sunday morning'; m.onlyDay = 4; day3.push(m); } else { m.onlyDay = 3; day3.push(m); } });
       });
-      created = E.scheduleBatch(st, 3, day3).concat(E.scheduleBatch(st, 4, spill, { breakMins: 0, stageId: 'R5' }));
+      created = E.scheduleBatch(st, id, day3);
       notes.push('The match with each group\'s 8th-placed team is played on Sunday morning');
     } else if (id === 'QF') {
       const A = E.standings(st, 'A').map(r => r.id), B = E.standings(st, 'B').map(r => r.id);
       const q = [['QF1', A[0], B[3]], ['QF2', A[1], B[2]], ['QF3', B[0], A[3]], ['QF4', B[1], A[2]]];
-      created = E.scheduleBatch(st, 4, q.map(x => mk(x[1], x[2], 'K', 'QF', x[0], null, id)), { stageId: id });
+      created = E.scheduleBatch(st, id, q.map(x => mk(x[1], x[2], 'K', 'QF', x[0], null, id)));
       created.forEach(m => m.qf = m.label); notes.push('QF1 A1 v B4 · QF2 A2 v B3 · QF3 B1 v A4 · QF4 B2 v A3');
     } else if (id === 'SF') {
       const w = n => st.matches.find(m => m.stage === 'QF' && m.label === n).result.winner;
       const q = [['SF1', w('QF1'), w('QF4')], ['SF2', w('QF2'), w('QF3')]];
-      created = E.scheduleBatch(st, 4, q.map(x => mk(x[1], x[2], 'K', 'SF', x[0], null, id)), { stageId: id });
+      created = E.scheduleBatch(st, id, q.map(x => mk(x[1], x[2], 'K', 'SF', x[0], null, id)));
       notes.push('SF1: QF1 v QF4 winners · SF2: QF2 v QF3 winners');
     } else if (id === 'F') {
       const w = n => st.matches.find(m => m.stage === 'SF' && m.label === n).result.winner;
-      created = E.scheduleBatch(st, 4, [mk(w('SF1'), w('SF2'), 'K', 'Final', 'Grand Final', null, id)], { final: true, fixedGround: 0, breakMins: st.settings.finalBreakMins });
+      created = E.scheduleBatch(st, id, [mk(w('SF1'), w('SF2'), 'K', 'Final', 'Grand Final', null, id)]);
       notes.push('Grand Final at ' + st.settings.grounds[0] + ' (always); the ' + st.settings.finalBreakMins + ' minute break after the semifinals covers any finalist travelling');
     }
     st.stages[id] = { at: Date.now() }; st.notes[id] = notes;
