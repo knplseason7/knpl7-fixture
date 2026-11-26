@@ -56,7 +56,7 @@ async function render(){
   if(r==='learn'){m.innerHTML=learnView();return;}
   if(r==='sim'){m.innerHTML=psView();if(PS&&!PS.draw.groupsDone)setTimeout(drawWheel,0);return;}
   if(r==='yt')return m.innerHTML=ytView();
-  if(r==='team')return m.innerHTML=teamView();
+  if(r==='team'){m.innerHTML=teamView();if(tp.team&&tp.tab==='sim'&&PS&&!PS.draw.groupsDone)setTimeout(drawWheel,0);return;}
   if(!session)return m.innerHTML=loginView();
   m.innerHTML=({draw:drawView,sched:schedView,sim:simView,table:tableView,thumbs:thumbsView,teams:teamsView,files:filesView,set:setView})[view]();
   if(view==='draw')setTimeout(drawWheel,0);
@@ -116,7 +116,7 @@ function spin(done){
   if(wheel.spinning)return;const n=wheel.items.length;if(!n)return;const idx=rnd(n);wheel.spinning=true;
   // pointer is at angle 0 (right). segment idx centre must land at 0 => angle = -(idx+.5)*2PI/n  (+ turns)
   const seg=2*Math.PI/n,target=-(idx+.5)*seg+(Math.random()-.5)*seg*.7;
-  const start=wheel.angle%(2*Math.PI),turns=5+rnd(3),end=target-turns*2*Math.PI,dur=route()==='sim'?2200:3600,t0=performance.now();
+  const start=wheel.angle%(2*Math.PI),turns=5+rnd(3),end=target-turns*2*Math.PI,dur=inSim()?2200:3600,t0=performance.now();
   (function f(t){const k=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-k,3);wheel.angle=start+(end-start)*e;drawWheel();if(k<1)requestAnimationFrame(f);else{wheel.spinning=false;wheel.angle=wheel.angle%(2*Math.PI);done(wheel.items[idx]);}})(t0);
   render_buttons();
 }
@@ -243,13 +243,18 @@ function ytView(){
   return h+'</div>';
 }
 /* ---------- TEAM PAGE ---------- */
-let tp={team:null};
+let tp={team:null,tab:'m'};
+const inSim=()=>route()==='sim'||(route()==='team'&&tp.team&&tp.tab==='sim');
 function teamView(){
   let h='<div class="pub">';
   if(!tp.team)h+=`<div class="card"><h2>Franchise owner page</h2><p class="muted small">${x('Choose your team and enter your owner code to see your matches, grounds, timings and results.','നിങ്ങളുടെ ടീം തിരഞ്ഞെടുത്ത് ഉടമയുടെ കോഡ് നൽകിയാൽ മത്സരങ്ങൾ, ഗ്രൗണ്ട്, സമയം, ഫലങ്ങൾ എന്നിവ കാണാം.')}</p><div class="field"><label>Team</label><select id="tt"><option value="">Select…</option>${S.teams.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></div><div class="field"><label>Owner code</label><input id="tc2" type="password"></div><button class="btn gold" data-act="teamgo">View</button></div>`;
   else{
     const id=tp.team,ms=S.matches.filter(m=>m.a===id||m.b===id).sort((a,b)=>a.day-b.day||a.start-b.start),g=S.groups.A.includes(id)?'A':'B';
     const row=S.draw.groupsDone?KE.standings(S,g).find(r=>r.id===id):null;
+    const ttab=tp.tab||'m';
+    const tabs=`<div class="tabs2" style="margin-top:0"><button class="t2${ttab==='m'?' on':''}" data-act="tptab" data-t="m">${x('My matches','എന്റെ മത്സരങ്ങൾ')}</button><button class="t2${ttab==='sim'?' on':''}" data-act="tptab" data-t="sim">▶ Practice simulation</button></div>`;
+    if(ttab==='sim'){if(!PS||PS.sigf!==frozenSig())psLoad();return '<div class="pub" style="max-width:1040px">'+tabs+psView()+'</div>';}
+    h+=tabs;
     h+=`<div class="card"><h2>${crest(id,1)} ${esc(KE.tname(S,id))}</h2><p class="muted small">${S.draw.groupsDone?'Group '+g:'Group not drawn yet'}${row?` · Position ${row.pos} · ${row.pts} pts · NRR ${row.nrr.toFixed(3)}`:''}</p><button class="btn ghost sm" data-act="teamout">Switch team</button></div>
     <div class="card"><h2>Matches</h2>${ms.length?ms.map(m=>{const opp=m.a===id?m.b:m.a;return `<div class="mrow" style="cursor:default"><div style="flex:1"><b>Match ${m.no}</b> · v ${esc(KE.tname(S,opp))}<div class="small muted">${KE.fmtDate(S,m.day).slice(0,11)} · ${KE.clock12(S,m.start)} · ${esc(gname(m.ground))}</div>${m.result?`<div class="small"><b>${m.result.winner===id?'Won':'Lost'}</b>${m.result.ra!==''&&m.result.ra!=null?` · ${esc(m.result.ra)}/${esc(m.result.oa||'')} v ${esc(m.result.rb)}/${esc(m.result.ob||'')}`:''}</div>`:''}</div><span class="chip ${m.status}">${m.status==='done'?'Result':'Scheduled'}</span></div>`;}).join(''):`<p class="muted">${x('Your schedule appears here once Round 1 is generated.','റൗണ്ട് 1 ഫിക്സ്ചർ വന്നാൽ നിങ്ങളുടെ മത്സരക്രമം ഇവിടെ കാണാം.')}</p>`}</div>`;
   }
@@ -636,10 +641,10 @@ document.addEventListener('click',async e=>{
     sessionStorage.setItem(LSS,JSON.stringify(session));render();break;}
   case 'logout':session=null;sessionStorage.removeItem(LSS);render();break;
   case 'spin':
-    if(route()==='sim'){spin(id=>psPick(id));break;}
+    if(inSim()){spin(id=>psPick(id));break;}
     if(S.draw.groupsDone&&wheel.target)spin(id=>pickLot(id));else spin(id=>pickGroup(id));break;
   case 'quickdraw':
-    if(route()==='sim'){const left=shuffle(S.teams.map(t=>t.id).filter(i=>!PS.groups.A.includes(i)&&!PS.groups.B.includes(i)));left.forEach(i=>(PS.groups.A.length<8?PS.groups.A:PS.groups.B).push(i));PS.draw.groupsDone=true;psLot(PS);psSave();render();break;}
+    if(inSim()){const left=shuffle(S.teams.map(t=>t.id).filter(i=>!PS.groups.A.includes(i)&&!PS.groups.B.includes(i)));left.forEach(i=>(PS.groups.A.length<8?PS.groups.A:PS.groups.B).push(i));PS.draw.groupsDone=true;psLot(PS);psSave();render();break;}
     if(S.draw.groupsDone&&wheel.target){while(wheel.queue.length){wheel.picks.push(wheel.queue.splice(rnd(wheel.queue.length),1)[0]);}const p=wheel.picks,g=wheel.target;S.lot[g]=[[p[0],p[1]],[p[2],p[3]],[p[4],p[5]],[p[6],p[7]]];wheel.target=null;wheel.picks=[];save();render();}
     else{const left=shuffle(S.teams.map(t=>t.id).filter(x=>!S.groups.A.includes(x)&&!S.groups.B.includes(x)));left.forEach(id=>(S.groups.A.length<8?S.groups.A:S.groups.B).push(id));S.draw.groupsDone=true;save();render();}break;
   case 'resetdraw':if(S.frozen)return toast('Groups are frozen. Unfreeze first.',1);if(S.matches.length)return toast('Fixtures already exist. Use Settings → Reset everything.',1);if(!confirm('Reset the group draw?'))return;S.groups={A:[],B:[]};S.draw={groupsDone:false,log:[]};S.lot={A:null,B:null};save();render();break;
@@ -706,7 +711,8 @@ document.addEventListener('click',async e=>{
     S.downloads.push(rec);try{localStorage.setItem(LS,JSON.stringify(S));}catch(_){}if(CFG.API_URL)api('logDownload',{rec}).catch(()=>{});break;}
   /* team */
   case 'teamgo':{const id=$('#tt').value,code=$('#tc2').value.trim();if(CFG.API_URL){const j=await api('teamLogin',{team:id,code});tp.team=id;tp.data=j;}else{const t=KE.team(S,id);if(!t||!t.code||t.code!==code)return toast('Team or code incorrect',1);tp.team=id;tp.data=null;}render();break;}
-  case 'teamout':tp.team=null;render();break;
+  case 'teamout':tp.team=null;tp.tab='m';render();break;
+  case 'tptab':{tp.tab=el.dataset.t;if(tp.tab==='sim'){if(!PS||PS.sigf!==frozenSig())psLoad();PS.my=tp.team;psSave();}render();break;}
   }}catch(err){toast(err.message||String(err),1);}
 });
 document.addEventListener('change',async e=>{
