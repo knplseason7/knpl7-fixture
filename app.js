@@ -30,7 +30,7 @@ function save(){
 function toast(m,err){const t=document.createElement('div');t.className='toast'+(err?' err':'');t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),3200);}
 function modal(html){const m=$('#modal');m.innerHTML=`<div class="modal-bg" data-act="mclose"><div class="modal">${html}</div></div>`;}
 function closeModal(){$('#modal').innerHTML='';}
-const logoOf=t=>t.logo||('assets/teams/'+t.id+'.png');
+const logoOf=t=>t.logo||('assets/teams/'+t.id+'.png?v=3');
 const crest=(id,big)=>{const t=KE.team(S,id)||{id,c1:'#444',c2:'#222'};const fb=`background:linear-gradient(135deg,${t.c1},${t.c2})`;return `<span class="crest${big?' big':''}" style="${fb}"><img src="${esc(logoOf(t))}" alt="${esc(t.id)}" loading="lazy" onerror="this.remove()"><em>${esc(t.id)}</em></span>`;};
 const gname=g=>S.settings.grounds[g];
 function rnd(n){const a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]%n;}
