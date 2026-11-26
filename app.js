@@ -30,7 +30,8 @@ function save(){
 function toast(m,err){const t=document.createElement('div');t.className='toast'+(err?' err':'');t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),3200);}
 function modal(html){const m=$('#modal');m.innerHTML=`<div class="modal-bg" data-act="mclose"><div class="modal">${html}</div></div>`;}
 function closeModal(){$('#modal').innerHTML='';}
-const crest=(id,big)=>{const t=KE.team(S,id)||{id,c1:'#444',c2:'#222'};const bg=t.logo?'':`background:linear-gradient(135deg,${t.c1},${t.c2})`;return `<span class="crest${big?' big':''}" style="${bg}">${t.logo?`<img src="${t.logo}" alt="">`:esc(t.id)}</span>`;};
+const logoOf=t=>t.logo||('assets/teams/'+t.id+'.png');
+const crest=(id,big)=>{const t=KE.team(S,id)||{id,c1:'#444',c2:'#222'};const fb=`background:linear-gradient(135deg,${t.c1},${t.c2})`;return `<span class="crest${big?' big':''}" style="${fb}"><img src="${esc(logoOf(t))}" alt="${esc(t.id)}" loading="lazy" onerror="this.remove()"><em>${esc(t.id)}</em></span>`;};
 const gname=g=>S.settings.grounds[g];
 function rnd(n){const a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]%n;}
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;}
@@ -194,7 +195,7 @@ function thumbsView(){
 }
 async function renderThumb(cv,no,st){
   st=st||S;const m=st.matches.find(x=>x.no===no);if(!m)return;await KT.fonts();
-  const logos={};await Promise.all(S.teams.map(async t=>{logos[t.id]=await KT.loadImg(t.logo);}));
+  const logos={};await Promise.all(S.teams.map(async t=>{logos[t.id]=await KT.loadImg(logoOf(t));}));
   const sp={};if(S.sponsorsFinal)for(const [k] of KT.ROLES){const s=(S.matchSponsors[no]&&S.matchSponsors[no][k])||S.sponsorRoles[k];sp[k]=s?{name:s.name,img:await KT.loadImg(s.img)}:null;}
   const d=new Date(st.settings.dates[m.day]+'T00:00:00');
   KT.draw(cv,{settings:st.settings,teams:S.teams,A:KE.team(S,m.a),B:KE.team(S,m.b),sponsorsTBD:!S.sponsorsFinal,logos,knpl:await KT.loadImg('assets/knpl_logo.png'),sponsors:sp,partner:null,
