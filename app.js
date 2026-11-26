@@ -385,12 +385,14 @@ function mcx(st,r){
     const w=m.result&&m.result.winner===id,l=m.result&&!w,me=id===st.my,tv=(m.travel||[]).some(t=>t.team===id);
     return `<div class="tb${w?' win':''}${l?' lose':''}${me?' me':''}${tv?' tv':''}">${w?'<span class="crown">👑</span>':''}${crest(id,true)}<b>${me?'⭐ ':''}${esc(KE.tname(st,id))}</b>${tv?'<span class="tvb">✈ TRAVEL</span>':''}</div>`;
   };
-  const when=m&&m.delay>0?`${KE.clock12(st,m.start)} <small class="late">+${m.delay} min</small>`:KE.clock12(st,m?m.start:r.start);
-  const trv=m?(m.travel||[]).map(t=>`<div class="trbar${t.team===st.my?' me':''}">✈ <b>${esc(KE.tname(st,t.team))}</b> ${x('travels from','യാത്ര ചെയ്യണം:')} ${esc(gshort(st,t.from))}${t.delay?` · ${x('starts '+t.delay+' min later (ground change time)',t.delay+' മിനിറ്റ് വൈകി തുടങ്ങും (ഗ്രൗണ്ട് മാറ്റ സമയം)')}`:''}</div>`).join(''):'';
+  const dl=m&&m.delay>0;
+  const when=dl?`<s class="was">${KE.clock12(st,m.plan)}</s> → <b class="chg">${KE.clock12(st,m.start)}</b> <small class="late">+${m.delay} min</small>`:KE.clock12(st,m?m.start:r.start);
+  const trv=m?(m.travel||[]).map(t=>{const pm=st.matches.find(q=>q.no===t.prevNo)||prevInfo(st,m,t.team),pe=pm?KE.clock12(st,pm.end):'';
+    return `<div class="trbar${t.team===st.my?' me':''}">✈ <b>${esc(KE.tname(st,t.team))}</b> ${x('travels from','യാത്ര ചെയ്യണം:')} ${esc(gshort(st,t.from))}${pe?` · ${x('last match ended','കഴിഞ്ഞ മത്സരം തീർന്നത്')} <b>${pe}</b>`:''}${t.delay?`<div class="trchg">⏱ ${x('Start moved '+KE.clock12(st,m.plan)+' → '+KE.clock12(st,m.start)+' (30 min ground-change time)',KE.clock12(st,m.plan)+' → '+KE.clock12(st,m.start)+' ആയി മാറ്റി (30 മിനിറ്റ് ഗ്രൗണ്ട് മാറ്റ സമയം)')}</div>`:''}</div>`;}).join(''):'';
   const cap=m?ladderCap(st,m):'';
-  return `<div class="mcx ${cls}${mine?' mine':''}${m&&(st.fresh||[]).includes(m.no)?' fresh':''}"><div class="mh"><span class="n">#${r.no}</span><span class="gtag g${r.ground}">${esc(gshort(st,r.ground))}</span><span class="rdl">${m?esc(short(m)):esc(r.roundName)}</span>${m?`<button class="ico" title="Thumbnail" data-act="psthumb" data-n="${m.no}">🖼</button>`:''}</div>
+  return `<div class="mcx ${cls}${mine?' mine':''}${dl?' timechg':''}${m&&(st.fresh||[]).includes(m.no)?' fresh':''}"><div class="mh"><span class="n">#${r.no}</span><span class="gtag g${r.ground}">${esc(gshort(st,r.ground))}</span><span class="rdl">${m?esc(short(m)):esc(r.roundName)}</span>${m?`<button class="ico" title="Thumbnail" data-act="psthumb" data-n="${m.no}">🖼</button>`:''}</div>
   <div class="vsr">${team(m&&m.a)}<span class="vsb">VS</span>${team(m&&m.b)}</div>
-  ${m?`<div class="mf"><span>🕒 ${when}</span>${cap?`<span class="cap">${cap}</span>`:''}</div>`:`<div class="mf"><span>🕒 ~${KE.clock12(st,r.start)}</span><span class="cap">🔒 ${x('opens when this round is generated','ഈ റൗണ്ട് ഉണ്ടാക്കുമ്പോൾ തുറക്കും')}</span></div>`}${trv}</div>`;
+  ${m?`<div class="mf"><span class="wh">🕒 ${when}</span>${cap?`<span class="cap">${cap}</span>`:''}</div>`:`<div class="mf"><span>🕒 ~${KE.clock12(st,r.start)}</span><span class="cap">🔒 ${x('opens when this round is generated','ഈ റൗണ്ട് ഉണ്ടാക്കുമ്പോൾ തുറക്കും')}</span></div>`}${trv}</div>`;
 }
 function fxTable(st,day){
   const rows=KE.grid(st).filter(r=>r.day===day),by=[];

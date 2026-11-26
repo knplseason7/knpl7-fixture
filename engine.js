@@ -161,7 +161,7 @@
      ended less than 30 minutes before, that match starts later (30 minutes ground-change time), and the other
      matches on that ground follow it. A team that has a free slot in between needs no extra time. */
   E.WB = 0.5;     // weight of a back-to-back match, compared with one ground change
-  E.WDEL = 1.5;   // weight of a match that has to start late for the ground-change time
+  E.WDEL = 0.1;   // weight of a match that starts late for the 30 min ground-change time (allowed, shown highlighted)
   E.WPEN = 0.15;  // weight that makes the lower-ranked / losing team the one that travels
   function context(st) {
     const gfree = {}, lastm = {}, chg = {}, last = {}, rank = {};
@@ -190,6 +190,7 @@
         last[k] = { end: s + dur, g: pos.ground };
       });
       if (s > pos.start) delayed++;
+      if (s - pos.start > tr) viol++;   // a match may never start more than the ground-change time (30 min) after its planned time
       gfree[gk] = s + dur; if (s + dur > lim) late += s + dur - lim;
       laid.push({ p, pos, start: s, end: s + dur });
     });
@@ -220,7 +221,7 @@
   /* post-hoc metrics of a whole fixture (used by the look-ahead and by the ground report) */
   E.metrics = function (st) {
     const tr = st.settings.travelMins, lim = E.minFromClock(st, st.settings.lastLight); let sw = 0, viol = 0, b2b = 0, pen = 0, delayed = 0, late = 0;
-    st.matches.forEach(m => { if (m.delay > 0) delayed++; if (m.end > lim) late += m.end - lim; });
+    st.matches.forEach(m => { if (m.delay > 0) delayed++; if (m.delay > tr) viol++; if (m.end > lim) late += m.end - lim; });
     st.teams.forEach(t => { for (let d = 1; d <= 4; d++) {
       const seq = st.matches.filter(m => m.day === d && (m.a === t.id || m.b === t.id)).sort((a, b) => a.start - b.start); let ch = 0;
       for (let i = 1; i < seq.length; i++) { const a = seq[i - 1], b = seq[i];
