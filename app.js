@@ -8,7 +8,7 @@ const x=(en,ml)=>esc(LANG==='ml'&&ml?ml:en);
 let S=null,view='draw',day=1,session=null,busy=false,AUTH={codeRequired:false};
 const demoCode=()=>{try{return localStorage.getItem('knpl7_democode')||CFG.DEMO_COMMITTEE_CODE||'';}catch(e){return CFG.DEMO_COMMITTEE_CODE||'';}};
 const LS='knpl7_state',LSS='knpl7_session';
-const route=()=>{const h=location.hash;return h===''||h==='#'||h==='#/'?'sim':h.startsWith('#/yt')?'yt':h.startsWith('#/team')?'team':h.startsWith('#/sim')?'sim':h.startsWith('#/learn')?'learn':h.startsWith('#/admin')?'admin':'home';};
+const route=()=>{const h=location.hash;return h===''||h==='#'||h==='#/'?'sim':h.startsWith('#/embed')?'embed':h.startsWith('#/yt')?'yt':h.startsWith('#/team')?'team':h.startsWith('#/sim')?'sim':h.startsWith('#/learn')?'learn':h.startsWith('#/admin')?'admin':'home';};
 
 /* ---------- storage / api ---------- */
 async function api(action,payload){
@@ -40,7 +40,7 @@ const csv=rows=>rows.map(r=>r.map(c=>'"'+String(c==null?'':c).replace(/"/g,'""')
 
 /* ---------- shell ---------- */
 function shell(){
-  const r=route(),tabs=$('#tabs'),who=$('#who');
+  const r=route(),tabs=$('#tabs'),who=$('#who');document.body.classList.toggle('embed',r==='embed');
   if(r==='admin'){
     if(!session){tabs.innerHTML='';who.innerHTML='Committee';return;}
     const T=[['draw','Draw'],['sched','Fixture'],['sim','Simulation lab'],['table','Points table'],['thumbs','Thumbnails'],['teams','Teams & sponsors'],['files','Downloads & links'],['set','Settings']];
@@ -54,6 +54,7 @@ function langSwitch(){return `<span class="row" style="gap:4px;flex-wrap:nowrap"
 async function render(){
   shell();const r=route(),m=$('#main');
   if(r==='home'){m.innerHTML=homeView();return;}
+  if(r==='embed'){m.innerHTML=embedView();if(emb.tab==='prac'&&PS&&!PS.draw.groupsDone)setTimeout(drawWheel,0);return;}
   if(r==='learn'){m.innerHTML=learnView();return;}
   if(r==='sim'){m.innerHTML=psView();if(PS&&!PS.draw.groupsDone)setTimeout(drawWheel,0);return;}
   if(r==='yt')return m.innerHTML=ytView();
@@ -244,6 +245,40 @@ function ytView(){
   return h+'</div>';
 }
 /* ---------- TEAM PAGE ---------- */
+/* ---------- TEAM DESK EMBED (#/embed?team=NAME): the same app, inside a tab of the franchise Team Desk ---------- */
+let emb={id:null,tab:null,t:null};
+const EMB_ALIAS={'KALINGA UNITED':'KAA','DEVILS OF CHITHRAKOOT':'DOC'};
+function embParams(){const q=(location.hash.split('?')[1]||''),p=new URLSearchParams(q);return {team:(p.get('team')||'').trim(),lang:p.get('lang')};}
+function embTeamId(name){
+  const n=name.toUpperCase().replace(/\s+/g,' ');if(!n)return null;
+  const t=S.teams.find(q=>q.id.toUpperCase()===n||q.name.toUpperCase()===n||KE.tname(S,q.id).toUpperCase()===n);
+  return t?t.id:(EMB_ALIAS[n]&&KE.team(S,EMB_ALIAS[n])?EMB_ALIAS[n]:null);
+}
+function embPractice(){if(!PS||PS.sigf!==frozenSig())psLoad();if(PS.my!==emb.id){PS.my=emb.id;psSave();}}
+function embedView(){
+  const P=embParams();if(P.lang==='ml'||P.lang==='en')LANG=P.lang;
+  const id=embTeamId(P.team);
+  if(!id)return `<div class="pub"><div class="card"><h2>${x('Team not found','ടീമിനെ കണ്ടെത്തിയില്ല')}</h2><p class="muted small">${x('Open this page from your Team Desk after logging in.','Team Desk-ൽ ലോഗിൻ ചെയ്ത ശേഷം ഇത് തുറക്കുക.')}</p></div></div>`;
+  if(emb.id!==id){emb.id=id;emb.tab=null;}
+  const real=S.matches.length>0;
+  if(!emb.tab||(!real&&emb.tab!=='prac'))emb.tab=real?'mine':'prac';
+  const SV=Object.assign(Object.create(S),{my:id});
+  const tabs=`<div class="tabs2" style="margin-top:0">${(real?[['mine','My fixture','എന്റെ ഫിക്സ്ചർ'],['table','Points table','പോയിന്റ് ടേബിൾ'],['res','Results','ഫലങ്ങൾ']]:[]).concat([['prac','Practice simulation','പ്രാക്ടീസ് സിമുലേഷൻ']]).map(t=>`<button class="t2${emb.tab===t[0]?' on':''}" data-act="emtab" data-t="${t[0]}">${x(t[1],t[2])}</button>`).join('')}</div>`;
+  if(emb.tab==='prac'){embPractice();return '<div class="pub" style="max-width:1040px">'+(real?'':`<div class="card coach"><h2>${crest(id,1)} ${esc(KE.tname(S,id))}</h2><p>${x('Practise the Dynamic Ladder as many times as you like. When the real fixture is published, your own matches, the points table and results will appear here.','Dynamic Ladder എത്ര തവണ വേണമെങ്കിലും പരിശീലിക്കാം. യഥാർത്ഥ ഫിക്സ്ചർ വരുമ്പോൾ നിങ്ങളുടെ മത്സരങ്ങൾ, പോയിന്റ് ടേബിൾ, ഫലങ്ങൾ ഇവിടെ കാണാം.')}</p></div>`)+tabs+psView()+'</div>';}
+  let h='<div class="pub game" style="max-width:1040px">'+tabs;
+  if(emb.tab==='mine'){
+    const g=S.groups.A.includes(id)?'A':S.groups.B.includes(id)?'B':null,row=g?KE.standings(S,g).find(r=>r.id===id):null;
+    const rows=KE.grid(SV).filter(r=>r.match&&(r.match.a===id||r.match.b===id));
+    const nx=rows.find(r=>r.match.status!=='done');
+    h+=`<div class="card"><h2>${crest(id,1)} ${esc(KE.tname(S,id))}</h2><p class="muted small">${g?x('Group '+g,'ഗ്രൂപ്പ് '+g):''}${row&&row.p?` · ${x('Position','സ്ഥാനം')} ${row.pos} · ${row.pts} ${x('pts','പോയിന്റ്')} · NRR ${row.nrr>=0?'+':''}${row.nrr.toFixed(3)}`:''}</p>`+
+      (nx?`<div class="mystrip"><b>${x('Next','അടുത്തത്')}:</b> ${esc(short(nx.match))} v ${esc(KE.tname(S,nx.match.a===id?nx.match.b:nx.match.a))} · ${KE.fmtDate(S,nx.match.day).slice(0,11)} · ${KE.clock12(S,nx.match.start)} · ${esc(S.settings.grounds[nx.match.ground])}${(nx.match.travel||[]).some(t=>t.team===id)?' <span class="tvb">✈ TRAVEL</span>':''}</div>`:'')+'</div>';
+    h+=rows.length?rows.map(r=>mcx(SV,r).replace(/<button class="ico"[^>]*>.*?<\/button>/,'')).join(''):`<div class="card muted">${x('Your matches appear here as each round is published.','ഓരോ റൗണ്ടും പ്രസിദ്ധീകരിക്കുമ്പോൾ നിങ്ങളുടെ മത്സരങ്ങൾ ഇവിടെ വരും.')}</div>`;
+    h+=`<p class="muted small" style="text-align:center">${x('Results and times update automatically from the official scoring.','ഫലങ്ങളും സമയങ്ങളും ഔദ്യോഗിക സ്കോറിംഗിൽ നിന്ന് ഓട്ടോമാറ്റിക്കായി അപ്ഡേറ്റ് ചെയ്യും.')}</p>`;
+  } else if(emb.tab==='table')h+=ladderView(SV);
+  else h+=resultsList(SV);
+  return h+'</div>';
+}
+setInterval(async()=>{if(route()==='embed'&&emb.tab&&emb.tab!=='prac'&&CFG.API_URL&&!document.hidden){await load();render();}},90000);
 let tp={team:null,tab:'m'};
 const inSim=()=>route()==='sim'||(route()==='team'&&tp.team&&tp.tab==='sim');
 function teamView(){
@@ -686,6 +721,7 @@ document.addEventListener('click',async e=>{
   case 'psgroups':{const ids=shuffle(S.teams.map(t=>t.id));PS=psNew();PS.groups={A:ids.slice(0,8),B:ids.slice(8)};PS.draw.groupsDone=true;psLot(PS);psSave();render();break;}
   case 'psgen':{const sd=PSTEPS.find(q=>q.id===el.dataset.s);PS.snap=PS.snap||{};PS.fresh=[];sd.stages.forEach(id=>{if(!PS.stages[id]){if(id!=='A-R1'&&id!=='B-R1')PS.snap[id]=psPosMap(PS);KE.generate(PS,id);PS.matches.filter(m=>m.stage===id).forEach(m=>PS.fresh.push(m.no));}});PS.tab='fx';PS.day=psLiveDay(PS);psSave();render();window.scrollTo({top:0,behavior:'smooth'});break;}
   case 'psres':{const sd=PSTEPS.find(q=>q.id===el.dataset.s),before=psPosMap(PS);PS.fresh=[];sd.stages.forEach(id=>{psPlay(PS,id);PS.matches.filter(m=>m.stage===id).forEach(m=>PS.fresh.push(m.no));});if(['R1','R2','R3','R4','R5'].includes(sd.id)){PS.hist=PS.hist||{};PS.hist[sd.id]=psPosMap(PS);}PS.ladder={name:sd.name,before};PS.news=psNews(PS,sd,before);PS.tab='lad';PS.day=psLiveDay(PS);psSave();render();window.scrollTo({top:0,behavior:'smooth'});break;}
+  case 'emtab':{emb.tab=el.dataset.t;if(emb.tab==='prac')embPractice();render();break;}
   case 'psday':PS.day=+el.dataset.d;psSave();render();break;
   case 'pspdf':psPdf();break;
   case 'pstab':PS.tab=el.dataset.t;psSave();render();break;
