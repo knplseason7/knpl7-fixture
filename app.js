@@ -281,7 +281,7 @@ function embedView(){
 }
 setInterval(async()=>{if(route()==='embed'&&emb.tab&&emb.tab!=='prac'&&CFG.API_URL&&!document.hidden){await load();render();}},90000);
 let tp={team:null,tab:'m'};
-const inSim=()=>route()==='sim'||(route()==='team'&&tp.team&&tp.tab==='sim');
+const inSim=()=>route()==='sim'||route()==='embed'||(route()==='team'&&tp.team&&tp.tab==='sim');
 function teamView(){
   let h='<div class="pub">';
   if(!tp.team)h+=`<div class="card"><h2>Franchise owner page</h2><p class="muted small">${x('Choose your team and enter your owner code to see your matches, grounds, timings and results.','നിങ്ങളുടെ ടീം തിരഞ്ഞെടുത്ത് ഉടമയുടെ കോഡ് നൽകിയാൽ മത്സരങ്ങൾ, ഗ്രൗണ്ട്, സമയം, ഫലങ്ങൾ എന്നിവ കാണാം.')}</p><div class="field"><label>Team</label><select id="tt"><option value="">Select…</option>${S.teams.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></div><div class="field"><label>Owner code</label><input id="tc2" type="password"></div><button class="btn gold" data-act="teamgo">View</button></div>`;
