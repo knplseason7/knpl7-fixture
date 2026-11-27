@@ -161,7 +161,7 @@
      ended less than 30 minutes before, that match starts later (30 minutes ground-change time), and the other
      matches on that ground follow it. A team that has a free slot in between needs no extra time. */
   E.WB = 0.5;     // weight of a back-to-back match, compared with one ground change
-  E.WDEL = 0.1;   // weight of a match that starts late for the 30 min ground-change time (allowed, shown highlighted)
+  E.WDEL = 1.5;   // weight of a match that has to start late for the 30 min ground-change time (rare; shown highlighted if unavoidable)
   E.WPEN = 0.15;  // weight that makes the lower-ranked / losing team the one that travels
   function context(st) {
     const gfree = {}, lastm = {}, chg = {}, last = {}, rank = {};
