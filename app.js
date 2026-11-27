@@ -263,7 +263,7 @@ function embedView(){
   if(emb.id!==id){emb.id=id;emb.tab=null;}
   const real=S.matches.length>0;
   if(!emb.tab||(!real&&emb.tab!=='prac'))emb.tab=real?'mine':'prac';
-  const SV=Object.assign(Object.create(S),{my:id});
+  const SV=Object.assign(Object.create(S),{my:id,lg:emb.lg});
   const tabs=`<div class="tabs2" style="margin-top:0">${(real?[['mine','My fixture','എന്റെ ഫിക്സ്ചർ'],['table','Points table','പോയിന്റ് ടേബിൾ'],['res','Results','ഫലങ്ങൾ']]:[]).concat([['prac','Practice simulation','പ്രാക്ടീസ് സിമുലേഷൻ']]).map(t=>`<button class="t2${emb.tab===t[0]?' on':''}" data-act="emtab" data-t="${t[0]}">${x(t[1],t[2])}</button>`).join('')}</div>`;
   if(emb.tab==='prac'){embPractice();return '<div class="pub" style="max-width:1040px">'+(real?tabs:(PS.draw.groupsDone?'':`<p class="muted small embintro">${x('Practise the Dynamic Ladder as often as you like. Real fixtures, points table and results appear here once published.','Dynamic Ladder എത്ര തവണയും പരിശീലിക്കാം. യഥാർത്ഥ ഫിക്സ്ചർ, പോയിന്റ് ടേബിൾ, ഫലങ്ങൾ പ്രസിദ്ധീകരിച്ചാൽ ഇവിടെ കാണാം.')}</p>`))+psView()+'</div>';}
   let h='<div class="pub game" style="max-width:1040px">'+tabs;
@@ -554,9 +554,11 @@ function resultsList(st){
 }
 function ladderView(st){
   const L=st.ladder||null;let h='';
-  if(L){h+=`<div class="banner ok"><b>${esc(L.name)} ${x('results are in. The ladder has changed!','ഫലങ്ങൾ വന്നു. ലാഡർ മാറി!')}</b><br>${x('In the real tournament these results come automatically from CricHeroes and the ladder updates the same way.','യഥാർത്ഥ ടൂർണമെന്റിൽ ഈ ഫലങ്ങൾ CricHeroes-ൽ നിന്ന് ഓട്ടോമാറ്റിക്കായി വരും; ലാഡറും ഇതേപോലെ മാറും.')}</div>`;
+  if(L){h+=`<div class="banner ok"><b>${esc(L.name)} ${x('results are in. The ladder has changed!','ഫലങ്ങൾ വന്നു. ലാഡർ മാറി!')}</b><span class="lexp"><br>${x('In the real tournament these results come automatically from CricHeroes and the ladder updates the same way.','യഥാർത്ഥ ടൂർണമെന്റിൽ ഈ ഫലങ്ങൾ CricHeroes-ൽ നിന്ന് ഓട്ടോമാറ്റിക്കായി വരും; ലാഡറും ഇതേപോലെ മാറും.')}</span></div>`;
     (st.news||[]).forEach(n=>{h+=`<div class="news">${newsText(n)}</div>`;});}
-  h+=`<div class="ladders">`+['A','B'].map(g=>{const rows=KE.standings(st,g),bef=L&&L.before&&L.before[g]&&L.name!=='Round 1'?L.before[g]:null;
+  const gl=MOB()?[st.lg||(st.my&&st.groups.B.includes(st.my)?'B':'A')]:['A','B'];
+  if(MOB())h+=`<div class="daytabs">${['A','B'].map(g=>`<button class="dt${gl[0]===g?' on':''}" data-act="pslg" data-g="${g}">${x('Group '+g,'ഗ്രൂപ്പ് '+g)}</button>`).join('')}</div>`;
+  h+=`<div class="ladders">`+gl.map(g=>{const rows=KE.standings(st,g),bef=L&&L.before&&L.before[g]&&L.name!=='Round 1'?L.before[g]:null;
     return `<div class="card"><h2>Group ${g} ladder</h2><div class="scroll"><table class="tbl"><tr><th>#</th><th></th><th>Team</th><th class="num">P</th><th class="num">W</th><th class="num">Pts</th><th class="num">NRR</th></tr>${rows.map(r=>{const mv=bef&&bef[r.id]?bef[r.id]-r.pos:0,me=r.id===st.my;
       return `<tr class="${r.pos<=4?'q':''}${me?' me':''}"><td>${r.pos}</td><td class="mv ${mv>0?'up':mv<0?'dn':''}">${mv>0?'▲'+mv:mv<0?'▼'+(-mv):''}</td><td><span class="row" style="flex-wrap:nowrap;gap:6px">${crest(r.id)}${me?'⭐ ':''}${esc(KE.tname(st,r.id))}</span></td><td class="num">${r.p}</td><td class="num">${r.w}</td><td class="num"><b>${r.pts}</b></td><td class="num">${r.nrr>=0?'+':''}${r.nrr.toFixed(2)}</td></tr>`;}).join('')}</table></div></div>`;}).join('')+`</div><p class="muted small">${x('Green rows are the top 4 and qualify for the quarter-finals. ▲▼ show the places moved since the last round.','പച്ച വരികൾ ആദ്യ 4 സ്ഥാനക്കാർ; അവർ ക്വാർട്ടർ ഫൈനലിൽ എത്തും. ▲▼ കഴിഞ്ഞ റൗണ്ടിനു ശേഷം മാറിയ സ്ഥാനം കാണിക്കുന്നു.')}</p>`;
   return h;
@@ -613,7 +615,7 @@ function crow(st,r){
 function roundView(st,nx){
   const sd=curStep(st,nx),rows=KE.grid(st).filter(r=>sd.stages.includes(r.stage)),gen=stGen(st,sd),done=gen&&stDone(st,sd);
   let h=`<div class="rnd"><div class="rnd-h"><h2>${esc(sd.name)}</h2><span class="chip ${!gen?'lock':done?'done':'ready'}">${!gen?'🔒 '+x('Waiting for the draw','ഉണ്ടാക്കിയിട്ടില്ല'):done?'✓ '+x('Results in','ഫലം വന്നു'):'● '+x('Live: tap Play','ലൈവ്: Play അമർത്തൂ')}</span></div>`;
-  if(done&&st.ladder&&st.ladder.name===sd.name)h+=`<button class="lbanner" data-act="pstab" data-t="lad">📊 ${x('Results are in. See how the ladder changed','ഫലം വന്നു. ലാഡർ എങ്ങനെ മാറി എന്ന് കാണൂ')} ›</button>`;
+  if(done&&st.ladder&&st.ladder.name===sd.name)h+=`<button class="lbanner" data-act="pstab" data-t="lad">📊 ${x('See how the ladder changed','ലാഡർ എങ്ങനെ മാറി')} ›</button>`;
   let last='';rows.forEach(r=>{const k=r.day+'|'+(r.group||'');if(k!==last){last=k;h+=`<div class="rnd-sub">${r.group?x('Group '+r.group,'ഗ്രൂപ്പ് '+r.group)+' · ':''}${KE.fmtDate(st,r.day).slice(0,11)}</div>`;}h+=crow(st,r);});
   if(done&&nx)h+=`<p class="muted small" style="text-align:center;margin:10px 0 0">${x('Next: tap the button below to fill '+nx.sd.name+'.','അടുത്തത്: '+nx.sd.name+' നിറയ്ക്കാൻ താഴത്തെ ബട്ടൺ അമർത്തൂ.')}</p>`;
   return h+'</div>';
@@ -633,7 +635,7 @@ function psView(){
   h+=psMyStrip(st);
   if(nx){const hp=STAGE_HELP[nx.sd.stages[0]];h+=`<div class="card coach"><h2>${nx.kind==='gen'?'Next: '+esc(nx.sd.name):esc(nx.sd.name)+': fixture ready'}</h2><p>${nx.kind==='gen'?x(...hp):x('Fixture is ready. Tap Play to get the results automatically. Then watch how the ladder changes.','ഫിക്സ്ചർ തയ്യാർ. Play അമർത്തിയാൽ ഫലങ്ങൾ ഓട്ടോമാറ്റിക്കായി വരും. എന്നിട്ട് ലാഡർ എങ്ങനെ മാറുന്നു എന്ന് കാണൂ.')}</p></div>`;}
   const tab=st.tab||'fx',day=st.day||psLiveDay(st);
-  h+=`<div class="tabs2">${(MOB()?[['fx','Round'],['lad','Ladder'],['res','Results'],['all','Fixture']]:[['fx','Fixture'],['res','Results'],['lad','Ladder']]).concat(st.my?[['me','My team']]:[]).map(t=>`<button class="t2${tab===t[0]?' on':''}" data-act="pstab" data-t="${t[0]}">${t[1]}</button>`).join('')}</div>`;
+  h+=`<div class="tabs2">${(MOB()?[['fx','Round'],['lad','Ladder'],['res','Results'],['all','Fixture']]:[['fx','Fixture'],['res','Results'],['lad','Ladder']]).concat(st.my?[['me',MOB()?'⭐ Me':'My team']]:[]).map(t=>`<button class="t2${tab===t[0]?' on':''}" data-act="pstab" data-t="${t[0]}">${t[1]}</button>`).join('')}</div>`;
   if(tab==='fx'&&MOB())h+=roundView(st,nx);
   else if(tab==='fx'||tab==='all'){
     const live=psLiveDay(st);
@@ -752,6 +754,7 @@ document.addEventListener('click',async e=>{
   case 'emtab':{emb.tab=el.dataset.t;if(emb.tab==='prac')embPractice();render();break;}
   case 'psday':PS.day=+el.dataset.d;psSave();render();break;
   case 'pspdf':psPdf();break;
+  case 'pslg':{if(route()==='embed'&&emb.tab==='table')emb.lg=el.dataset.g;else{PS.lg=el.dataset.g;psSave();}render();break;}
   case 'pstab':PS.tab=el.dataset.t;psSave();render();break;
   case 'psthumb':psThumbModal(n);break;
   case 'psthumbdl':dlCanvas($('#tcm'),`KNPL7_Practice_Match_${n}.png`);break;
