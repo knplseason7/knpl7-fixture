@@ -404,7 +404,9 @@ function psPick(id){
 function psPosMap(st){const o={};['A','B'].forEach(g=>{if(!st.groups[g].length)return;o[g]={};KE.standings(st,g).forEach(r=>o[g][r.id]=r.pos);});return o;}
 function psLiveDay(st){const p=st.matches.filter(m=>m.status!=='done').sort((a,b)=>a.day-b.day||a.start-b.start)[0];if(p)return p.day;const all=st.matches.slice().sort((a,b)=>b.day-a.day)[0];return all?all.day:1;}
 const gshort=(st,g)=>String(st.settings.grounds[g]).split(' ')[0].toUpperCase();
-const short=(m)=>m?(m.kind==='league'?'Round '+m.round+(m.day>=3?' · Grp '+m.group:''):m.kind==='Final'?'FINAL':m.label):'';
+const isRSM=(r)=>/^[AB]-R1$/.test(r.stage||'')||!!(r.match&&r.match.kind==='league'&&r.match.round===1);
+const rsmTag=r=>isRSM(r)?'<span class="rsm" title="Rising Star Marque match">⭐ RSM</span>':'';
+const short=(m)=>m?(m.kind==='league'?'Round '+m.round+(m.round===1?' · RSM':'')+(m.day>=3?' · Grp '+m.group:''):m.kind==='Final'?'FINAL':m.label):'';
 const ordn=n=>n+(['st','nd','rd'][n-1]||'th');
 function ladderCap(st,m){
   if(m.kind!=='league')return '';
@@ -426,7 +428,7 @@ function mcx(st,r){
   const trv=m?(m.travel||[]).map(t=>{const pm=st.matches.find(q=>q.no===t.prevNo)||prevInfo(st,m,t.team),pe=pm?KE.clock12(st,pm.end):'';
     return `<div class="trbar${t.team===st.my?' me':''}">✈ <b>${esc(KE.tname(st,t.team))}</b> ${x('travels from','യാത്ര ചെയ്യണം:')} ${esc(gshort(st,t.from))}${pe?` · ${x('last match ended','കഴിഞ്ഞ മത്സരം തീർന്നത്')} <b>${pe}</b>`:''}${t.delay?`<div class="trchg">⏱ ${x('Start moved '+KE.clock12(st,m.plan)+' → '+KE.clock12(st,m.start)+' (30 min ground-change time)',KE.clock12(st,m.plan)+' → '+KE.clock12(st,m.start)+' ആയി മാറ്റി (30 മിനിറ്റ് ഗ്രൗണ്ട് മാറ്റ സമയം)')}</div>`:''}</div>`;}).join(''):'';
   const cap=m?ladderCap(st,m):'';
-  return `<div class="mcx ${cls}${mine?' mine':''}${dl?' timechg':''}${m&&(st.fresh||[]).includes(m.no)?' fresh':''}"><div class="mh"><span class="n">#${r.no}</span><span class="gtag g${r.ground}">${esc(gshort(st,r.ground))}</span><span class="rdl">${m?esc(short(m)):esc(r.roundName)}</span>${m?`<button class="ico" title="Thumbnail" data-act="psthumb" data-n="${m.no}">🖼</button>`:''}</div>
+  return `<div class="mcx ${cls}${mine?' mine':''}${dl?' timechg':''}${m&&(st.fresh||[]).includes(m.no)?' fresh':''}"><div class="mh"><span class="n">#${r.no}</span><span class="gtag g${r.ground}">${esc(gshort(st,r.ground))}</span>${rsmTag(r)}<span class="rdl">${m?esc(short(m)):esc(r.roundName)}</span>${m?`<button class="ico" title="Thumbnail" data-act="psthumb" data-n="${m.no}">🖼</button>`:''}</div>
   <div class="vsr">${team(m&&m.a)}<span class="vsb">VS</span>${team(m&&m.b)}</div>
   ${m?`<div class="mf"><span class="wh">🕒 ${when}</span>${cap?`<span class="cap">${cap}</span>`:''}</div>`:`<div class="mf"><span>🕒 ~${KE.clock12(st,r.start)}</span><span class="cap">🔒 ${x('opens when this round is generated','ഈ റൗണ്ട് ഉണ്ടാക്കുമ്പോൾ തുറക്കും')}</span></div>`}${trv}</div>`;
 }
@@ -610,11 +612,11 @@ function crow(st,r){
   const trv=m?(m.travel||[]).map(t=>{const pm=st.matches.find(q=>q.no===t.prevNo),pe=pm?KE.clock12(st,pm.end):'';
     return `<div class="ctr${t.team===my?' me':''}">✈ <b>${esc(KE.tname(st,t.team))}</b> ${x('from','from')} ${esc(gshort(st,t.from))}${pe?` · ${x('last match ended','കഴിഞ്ഞ മത്സരം തീർന്നത്')} <b>${pe}</b>`:''}${t.delay?`<div class="ctc">⏱ ${x('Start moved','സമയം മാറ്റി')} ${KE.clock12(st,m.plan)} → ${KE.clock12(st,m.start)} (+${t.delay} min)</div>`:''}</div>`;}).join(''):'';
   const cls=!m?'blank':m.status==='done'?'done':'live';
-  return `<div class="crow ${cls}${m&&my&&(m.a===my||m.b===my)?' mine':''}${dl?' timechg':''}"><div class="ch"><b>#${r.no}</b><span class="gtag g${r.ground}">${esc(gshort(st,r.ground))}</span><span class="ctm">🕒 ${time}</span>${m&&m.result&&m.result.ra!==''&&m.result.ra!=null?`<span class="csc">${esc(m.result.ra)} v ${esc(m.result.rb)}</span>`:''}</div><div class="cv">${tm(m&&m.a)}<span class="cvs">v</span>${tm(m&&m.b)}</div>${trv}</div>`;
+  return `<div class="crow ${cls}${m&&my&&(m.a===my||m.b===my)?' mine':''}${dl?' timechg':''}"><div class="ch"><b>#${r.no}</b><span class="gtag g${r.ground}">${esc(gshort(st,r.ground))}</span>${rsmTag(r)}<span class="ctm">🕒 ${time}</span>${m&&m.result&&m.result.ra!==''&&m.result.ra!=null?`<span class="csc">${esc(m.result.ra)} v ${esc(m.result.rb)}</span>`:''}</div><div class="cv">${tm(m&&m.a)}<span class="cvs">v</span>${tm(m&&m.b)}</div>${trv}</div>`;
 }
 function roundView(st,nx){
   const sd=curStep(st,nx),rows=KE.grid(st).filter(r=>sd.stages.includes(r.stage)),gen=stGen(st,sd),done=gen&&stDone(st,sd);
-  let h=`<div class="rnd"><div class="rnd-h"><h2>${esc(sd.name)}</h2><span class="chip ${!gen?'lock':done?'done':'ready'}">${!gen?'🔒 '+x('Waiting for the draw','ഉണ്ടാക്കിയിട്ടില്ല'):done?'✓ '+x('Results in','ഫലം വന്നു'):'● '+x('Live: tap Play','ലൈവ്: Play അമർത്തൂ')}</span></div>`;
+  let h=`<div class="rnd"><div class="rnd-h"><h2>${esc(sd.name)}${sd.id==='R1'?' <span class="rsm">⭐ RSM Match</span>':''}</h2><span class="chip ${!gen?'lock':done?'done':'ready'}">${!gen?'🔒 '+x('Waiting for the draw','ഉണ്ടാക്കിയിട്ടില്ല'):done?'✓ '+x('Results in','ഫലം വന്നു'):'● '+x('Live: tap Play','ലൈവ്: Play അമർത്തൂ')}</span></div>`;
   if(done&&st.ladder&&st.ladder.name===sd.name)h+=`<button class="lbanner" data-act="pstab" data-t="lad">📊 ${x('See how the ladder changed','ലാഡർ എങ്ങനെ മാറി')} ›</button>`;
   let last='';rows.forEach(r=>{const k=r.day+'|'+(r.group||'');if(k!==last){last=k;h+=`<div class="rnd-sub">${r.group?x('Group '+r.group,'ഗ്രൂപ്പ് '+r.group)+' · ':''}${KE.fmtDate(st,r.day).slice(0,11)}</div>`;}h+=crow(st,r);});
   if(done&&nx)h+=`<p class="muted small" style="text-align:center;margin:10px 0 0">${x('Next: tap the button below to fill '+nx.sd.name+'.','അടുത്തത്: '+nx.sd.name+' നിറയ്ക്കാൻ താഴത്തെ ബട്ടൺ അമർത്തൂ.')}</p>`;
