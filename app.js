@@ -21,6 +21,7 @@ async function load(){
   if(CFG.API_URL){ try{ const j=await api(route()==='admin'&&session?'getState':'getPublic'); st=j.state; if(st)st.ver=j.version; }catch(e){ console.warn(e); } }
   if(!st){ try{ st=JSON.parse(localStorage.getItem(LS)); }catch(e){} }
   S=st||KE.newState();
+  const REN={'Kalinga Adhipans':'Kalinga United','Devils Of Chitrakoot':'Devils Of Chithrakoot'};S.teams.forEach(t=>{if(REN[t.name])t.name=REN[t.name];});
 }
 let saveT=null;
 function save(){
@@ -247,7 +248,7 @@ function ytView(){
 /* ---------- TEAM PAGE ---------- */
 /* ---------- TEAM DESK EMBED (#/embed?team=NAME): the same app, inside a tab of the franchise Team Desk ---------- */
 let emb={id:null,tab:null,t:null};
-const EMB_ALIAS={'KALINGA UNITED':'KAA','DEVILS OF CHITHRAKOOT':'DOC'};
+const EMB_ALIAS={'KALINGA ADHIPANS':'KAA','DEVILS OF CHITRAKOOT':'DOC'};
 function embParams(){const q=(location.hash.split('?')[1]||''),p=new URLSearchParams(q);return {team:(p.get('team')||'').trim(),lang:p.get('lang')};}
 function embTeamId(name){
   const n=name.toUpperCase().replace(/\s+/g,' ');if(!n)return null;

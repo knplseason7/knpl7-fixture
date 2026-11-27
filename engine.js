@@ -3,11 +3,11 @@
   'use strict';
   const E = {};
   E.TEAMS = [
-    ['DOC', 'Devils Of Chitrakoot', 'Balamurali E', '#B3202A', '#1a1a1a'],
+    ['DOC', 'Devils Of Chithrakoot', 'Balamurali E', '#B3202A', '#1a1a1a'],
     ['AYW', 'Ayodhya Warriors', 'Deepu M', '#E8731A', '#7a1b1b'],
     ['SON', 'Spartans Of Nalanda', 'Dileep Mampally', '#1F3A7A', '#E0B040'],
     ['MIM', 'Mighty Mithilas', 'Hareesh Govind', '#F2C230', '#1F3A7A'],
-    ['KAA', 'Kalinga Adhipans', 'Hareesh Kumar G N', '#D8DCE6', '#C8102E'],
+    ['KAA', 'Kalinga United', 'Hareesh Kumar G N', '#D8DCE6', '#C8102E'],
     ['KUY', 'Kurukshetra Yodhas', 'Hari Govind N', '#1a1a1a', '#D4A62A'],
     ['JOJ', 'Jaguars Of Jhansi', 'Hari T R', '#F28A1B', '#1a1a1a'],
     ['KOK', 'Knights Of Kanchi', 'Haridas CMP', '#5B2C83', '#D4A62A'],
