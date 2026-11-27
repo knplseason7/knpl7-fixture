@@ -255,7 +255,7 @@ function embTeamId(name){
   const t=S.teams.find(q=>q.id.toUpperCase()===n||q.name.toUpperCase()===n||KE.tname(S,q.id).toUpperCase()===n);
   return t?t.id:(EMB_ALIAS[n]&&KE.team(S,EMB_ALIAS[n])?EMB_ALIAS[n]:null);
 }
-function embPractice(){if(!PS||PS.sigf!==frozenSig())psLoad();if(PS.my!==emb.id){PS.my=emb.id;psSave();}}
+function embPractice(){if(!PS||PS.sigf!==frozenSig())psLoad();if(emb.setFor!==emb.id){emb.setFor=emb.id;PS.my=emb.id;psSave();}}   /* default = the desk's own team; the owner can change it with the selector */
 function embedView(){
   const P=embParams();if(P.lang==='ml'||P.lang==='en')LANG=P.lang;
   const id=embTeamId(P.team);
@@ -596,7 +596,7 @@ function psView(){
   if(!PS||PS.sigf!==frozenSig())psLoad();
   const st=PS,nx=psNextStep(st);let h='<div class="pub game">';
   const fin=st.matches.find(m=>m.kind==='Final'&&m.status==='done');
-  const sel=`<select id="psmy" data-act="psmy"><option value="">⭐ ${x('Follow my team (optional)','എന്റെ ടീം (ഓപ്ഷണൽ)')}</option>${S.teams.map(t=>`<option value="${t.id}" ${st.my===t.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select>`;
+  const sel=`<select id="psmy" data-act="psmy"><option value="">⭐ ${route()==='embed'?x('Choose a team to follow','ഫോളോ ചെയ്യാൻ ടീം തിരഞ്ഞെടുക്കൂ'):x('Follow my team (optional)','എന്റെ ടീം (ഓപ്ഷണൽ)')}</option>${S.teams.map(t=>`<option value="${t.id}" ${st.my===t.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select>`;
   if(!st.draw.groupsDone)h+=`<div class="card top"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><h2 style="margin:0">${x('Practice mode','പ്രാക്ടീസ് മോഡ്')} <span class="chip ready">Not real</span></h2></div>
   <p class="muted small" style="margin:6px 0 10px">${x('Play the whole tournament in a few taps. Nothing here is real and nobody else can see it.','ഏതാനും ടാപ്പുകൾ കൊണ്ട് ടൂർണമെന്റ് മുഴുവൻ കളിച്ചു നോക്കൂ. ഇതൊന്നും യഥാർത്ഥമല്ല, മറ്റാരും ഇത് കാണില്ല.')}</p>
   ${sel}<p class="small muted" style="margin-top:6px">${x('Pick your team and it wins every match and lifts the trophy!','നിങ്ങളുടെ ടീമിനെ തിരഞ്ഞെടുത്താൽ അത് എല്ലാ കളിയും ജയിച്ച് കപ്പ് നേടും!')}</p></div>`;
