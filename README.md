@@ -34,8 +34,8 @@ Ladder pairings are untouched. Ground choice minimises total changes (limit sett
 The 30 minute buffer is added only when a team actually travels (the next round is generated after results, so travel is known then). The Grand Final is always at the first ground (FISAT); the 45 minute break after the semi-finals covers any finalist travelling.
 
 ## Phases and multi-user use
-* Before 30 Nov: the practice simulation page (`#/sim`) lets anyone generate their own groups and run the whole ladder, Round 1 to Final, with fixtures, random or picked results, thumbnails (sponsors shown as "yet to be finalised" until you tick "Sponsors finalised"), and a Reset button.
-* 30 Nov: committee draws groups on the Draw tab and clicks **Freeze groups**. From then on every practice simulation starts from the frozen groups.
+* Before the groups are decided (on or before 5 Dec): the practice simulation page (`#/sim`) lets anyone generate their own groups and run the whole ladder, Round 1 to Final, with fixtures, random or picked results, thumbnails (sponsors shown as "yet to be finalised" until you tick "Sponsors finalised"), and a Reset button.
+* On or before 5 Dec (online meeting): committee draws groups on the Draw tab and clicks **Freeze groups**. From then on every practice simulation starts from the frozen groups.
 * When the CricHeroes tournament is live (by 10 Jan): add the link in Settings and click **Mark tournament started**. Results then come from **Fetch CricHeroes results** (manual entry stays as a fallback).
 * The practice simulation runs entirely in each visitor's browser and is saved only on their device, so any number of people can use it at the same time without affecting each other or the server.
 * Live committee data is protected against two people saving at once (version check + lock in Code.gs): the second save is refused and the page reloads the latest data. Owner codes are checked on the server and never sent to public pages.
