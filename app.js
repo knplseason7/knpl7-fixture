@@ -261,10 +261,10 @@ function embedView(){
   const id=embTeamId(P.team);
   if(!id)return `<div class="pub"><div class="card"><h2>${x('Team not found','ടീമിനെ കണ്ടെത്തിയില്ല')}</h2><p class="muted small">${x('Open this page from your Team Desk after logging in.','Team Desk-ൽ ലോഗിൻ ചെയ്ത ശേഷം ഇത് തുറക്കുക.')}</p></div></div>`;
   if(emb.id!==id){emb.id=id;emb.tab=null;}
-  const real=S.matches.length>0;
-  if(!emb.tab||(!real&&emb.tab!=='prac'))emb.tab=real?'mine':'prac';
+  const real=S.matches.length>0,closed=!!S.started;
+  if(!emb.tab||(!real&&emb.tab!=='prac')||(closed&&emb.tab==='prac'))emb.tab=real?'mine':'prac';
   const SV=Object.assign(Object.create(S),{my:id,lg:emb.lg});
-  const tabs=`<div class="tabs2" style="margin-top:0">${(real?[['mine','My fixture','എന്റെ ഫിക്സ്ചർ'],['table','Points table','പോയിന്റ് ടേബിൾ'],['res','Results','ഫലങ്ങൾ']]:[]).concat([['prac','Practice simulation','പ്രാക്ടീസ് സിമുലേഷൻ']]).map(t=>`<button class="t2${emb.tab===t[0]?' on':''}" data-act="emtab" data-t="${t[0]}">${x(t[1],t[2])}</button>`).join('')}</div>`;
+  const tabs=`<div class="tabs2" style="margin-top:0">${(real?[['mine','My fixture','എന്റെ ഫിക്സ്ചർ'],['table','Points table','പോയിന്റ് ടേബിൾ'],['res','Results','ഫലങ്ങൾ']]:[]).concat(closed?[]:[['prac','Practice simulation','പ്രാക്ടീസ് സിമുലേഷൻ']]).map(t=>`<button class="t2${emb.tab===t[0]?' on':''}" data-act="emtab" data-t="${t[0]}">${x(t[1],t[2])}</button>`).join('')}</div>`;
   if(emb.tab==='prac'){embPractice();return '<div class="pub" style="max-width:1040px">'+(real?tabs:(PS.draw.groupsDone?'':`<p class="muted small embintro">${x('Practise the Dynamic Ladder as often as you like. Real fixtures, points table and results appear here once published.','Dynamic Ladder എത്ര തവണയും പരിശീലിക്കാം. യഥാർത്ഥ ഫിക്സ്ചർ, പോയിന്റ് ടേബിൾ, ഫലങ്ങൾ പ്രസിദ്ധീകരിച്ചാൽ ഇവിടെ കാണാം.')}</p>`))+psView()+'</div>';}
   let h='<div class="pub game" style="max-width:1040px">'+tabs;
   if(emb.tab==='mine'){
@@ -622,7 +622,9 @@ function roundView(st,nx){
   if(done&&nx)h+=`<p class="muted small" style="text-align:center;margin:10px 0 0">${x('Next: tap the button below to fill '+nx.sd.name+'.','അടുത്തത്: '+nx.sd.name+' നിറയ്ക്കാൻ താഴത്തെ ബട്ടൺ അമർത്തൂ.')}</p>`;
   return h+'</div>';
 }
+function psClosed(){return `<div class="card" style="text-align:center"><h2>🏏 ${x('The tournament has started','ടൂർണമെന്റ് തുടങ്ങി')}</h2><p>${x('Practice simulation is now closed. See the real fixtures, points table and results in your Team Desk.','പ്രാക്ടീസ് സിമുലേഷൻ ഇപ്പോൾ അടച്ചിരിക്കുന്നു. ശരിക്കുള്ള ഫിക്സ്ചർ, പോയിന്റ് ടേബിൾ, ഫലങ്ങൾ എന്നിവ നിങ്ങളുടെ Team Desk-ൽ കാണാം.')}</p>${route()==='embed'?'':`<p><a class="btn gold" href="https://knplseason7.github.io/knpl7/team/" target="_top">${x('Open Team Desk','Team Desk തുറക്കൂ')}</a></p>`}</div>`;}
 function psView(){
+  if(S.started)return psClosed();
   if(!PS||PS.sigf!==frozenSig())psLoad();
   const st=PS,nx=psNextStep(st);let h='<div class="pub game">';
   const fin=st.matches.find(m=>m.kind==='Final'&&m.status==='done');
