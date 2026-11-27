@@ -749,13 +749,13 @@ document.addEventListener('click',async e=>{
   case 'lang':LANG=el.dataset.l;try{localStorage.setItem('knpl7_lang',LANG);}catch(e){}render();break;
   case 'psreset':if(confirm('Reset your practice simulation?')){PS=psNew();psDay=1;psSave();render();}break;
   case 'psgroups':{const ids=shuffle(S.teams.map(t=>t.id));PS=psNew();PS.groups={A:ids.slice(0,8),B:ids.slice(8)};PS.draw.groupsDone=true;psLot(PS);psSave();render();break;}
-  case 'psgen':{const sd=PSTEPS.find(q=>q.id===el.dataset.s);PS.snap=PS.snap||{};PS.fresh=[];sd.stages.forEach(id=>{if(!PS.stages[id]){if(id!=='A-R1'&&id!=='B-R1')PS.snap[id]=psPosMap(PS);KE.generate(PS,id);PS.matches.filter(m=>m.stage===id).forEach(m=>PS.fresh.push(m.no));}});PS.tab='fx';PS.day=psLiveDay(PS);psSave();render();break;}
-  case 'psres':{const sd=PSTEPS.find(q=>q.id===el.dataset.s),before=psPosMap(PS);PS.fresh=[];sd.stages.forEach(id=>{psPlay(PS,id);PS.matches.filter(m=>m.stage===id).forEach(m=>PS.fresh.push(m.no));});if(['R1','R2','R3','R4','R5'].includes(sd.id)){PS.hist=PS.hist||{};PS.hist[sd.id]=psPosMap(PS);}PS.ladder={name:sd.name,before};PS.news=psNews(PS,sd,before);PS.tab=MOB()?'fx':'lad';PS.day=psLiveDay(PS);psSave();render();break;}
+  case 'psgen':{const sd=PSTEPS.find(q=>q.id===el.dataset.s);PS.snap=PS.snap||{};PS.fresh=[];sd.stages.forEach(id=>{if(!PS.stages[id]){if(id!=='A-R1'&&id!=='B-R1')PS.snap[id]=psPosMap(PS);KE.generate(PS,id);PS.matches.filter(m=>m.stage===id).forEach(m=>PS.fresh.push(m.no));}});PS.tab='fx';PS.day=psLiveDay(PS);psSave();render();if(MOB())window.scrollTo(0,0);break;}
+  case 'psres':{const sd=PSTEPS.find(q=>q.id===el.dataset.s),before=psPosMap(PS);PS.fresh=[];sd.stages.forEach(id=>{psPlay(PS,id);PS.matches.filter(m=>m.stage===id).forEach(m=>PS.fresh.push(m.no));});if(['R1','R2','R3','R4','R5'].includes(sd.id)){PS.hist=PS.hist||{};PS.hist[sd.id]=psPosMap(PS);}PS.ladder={name:sd.name,before};PS.news=psNews(PS,sd,before);PS.tab=MOB()?'fx':'lad';PS.day=psLiveDay(PS);psSave();render();if(MOB())window.scrollTo(0,0);break;}
   case 'emtab':{emb.tab=el.dataset.t;if(emb.tab==='prac')embPractice();render();break;}
   case 'psday':PS.day=+el.dataset.d;psSave();render();break;
   case 'pspdf':psPdf();break;
   case 'pslg':{if(route()==='embed'&&emb.tab==='table')emb.lg=el.dataset.g;else{PS.lg=el.dataset.g;psSave();}render();break;}
-  case 'pstab':PS.tab=el.dataset.t;psSave();render();break;
+  case 'pstab':PS.tab=el.dataset.t;psSave();render();if(MOB())window.scrollTo(0,0);break;
   case 'psthumb':psThumbModal(n);break;
   case 'psthumbdl':dlCanvas($('#tcm'),`KNPL7_Practice_Match_${n}.png`);break;
   case 'freeze':if(!S.draw.groupsDone)return;if(!confirm('Freeze the groups? Practice simulations will start using them.'))return;S.frozen=true;save();render();break;
